@@ -1,98 +1,177 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 export default function HomeScreen() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Header Section */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.welcomeText}>Welcome to Ayuuto, Amina!</Text>
+            <Text style={styles.sloganText}>ORGANIZE WITH TRUST, CELEBRATE TOGETHER.</Text>
+          </View>
+          <TouchableOpacity style={styles.flagButton}>
+            <IconSymbol name="flag.fill" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        {/* New Group Button */}
+        <TouchableOpacity style={styles.newGroupButton}>
+          <IconSymbol name="plus" size={24} color="#FFFFFF" />
+          <Text style={styles.newGroupText}>NEW GROUP</Text>
+        </TouchableOpacity>
+
+        {/* Ayuuto Manager Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitleYellow}>AYUUTO MANAGER</Text>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>YOU DON'T MANAGE ANY GROUPS YET.</Text>
+          </View>
+        </View>
+
+        {/* My Ayuutos Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitleBlue}>MY AYUUTOS</Text>
+          <View style={styles.fundCard}>
+            <View style={styles.fundCardHeader}>
+              <Text style={styles.fundName}>FRIDAY COMMUNITY FUND</Text>
+              <Text style={styles.turnIndicator}>TURN 2</Text>
+            </View>
+            <View style={styles.fundDetails}>
+              <IconSymbol name="dollarsign.circle.fill" size={16} color="#FFD700" />
+              <Text style={styles.fundDetailsText}>1500 • 3 Participants</Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: '#1a2332',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 24,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  welcomeText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  sloganText: {
+    fontSize: 12,
+    color: '#9BA1A6',
+    letterSpacing: 1,
+  },
+  flagButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#1a2332',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2a3441',
+  },
+  newGroupButton: {
+    backgroundColor: '#4CAF50',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 32,
+  },
+  newGroupText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sectionTitleYellow: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFD700',
+    letterSpacing: 1,
+    marginBottom: 16,
+  },
+  sectionTitleBlue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#4FC3F7',
+    letterSpacing: 1,
+    marginBottom: 16,
+  },
+  emptyState: {
+    borderWidth: 2,
+    borderColor: '#9BA1A6',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyStateText: {
+    color: '#9BA1A6',
+    fontSize: 14,
+    letterSpacing: 1,
+  },
+  fundCard: {
+    backgroundColor: '#1f2a3a',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#2a3441',
+  },
+  fundCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  fundName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFD700',
+    letterSpacing: 1,
+    flex: 1,
+  },
+  turnIndicator: {
+    fontSize: 12,
+    color: '#9BA1A6',
+    letterSpacing: 1,
+  },
+  fundDetails: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  fundDetailsText: {
+    color: '#9BA1A6',
+    fontSize: 14,
   },
 });
