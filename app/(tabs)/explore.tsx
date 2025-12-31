@@ -1,112 +1,171 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+import { clearAuth, getUserData, UserData } from '@/utils/auth';
 
-export default function TabTwoScreen() {
+export default function SettingsScreen() {
+  const [user, setUser] = useState<UserData | null>(null);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const storedUser = await getUserData();
+      setUser(storedUser);
+    };
+
+    loadUser();
+  }, []);
+
+  const displayName = user?.name || user?.email || 'Guest';
+  const initials =
+    (user?.name || user?.email || 'Ayuuto')
+      .split(' ')
+      .map((part) => part[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* Header */}
+        <Text style={styles.title}>Settings</Text>
+        <Text style={styles.subtitle}>Manage your Ayuuto experience</Text>
+
+        {/* Avatar + name */}
+        <View style={styles.profileCard}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initials}</Text>
+          </View>
+          <Text style={styles.name}>{displayName}</Text>
+        </View>
+
+        {/* Settings buttons */}
+        <View style={styles.section}>
+          <TouchableOpacity style={styles.row}>
+            <View style={styles.rowLeft}>
+              <IconSymbol name="person.fill" size={22} color="#FFD700" />
+              <Text style={styles.rowLabel}>Profile Settings</Text>
+            </View>
+            <IconSymbol name="chevron.right" size={20} color="#9BA1A6" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.row}>
+            <View style={styles.rowLeft}>
+              <IconSymbol name="lock.fill" size={22} color="#FFD700" />
+              <Text style={styles.rowLabel}>Privacy Settings</Text>
+            </View>
+            <IconSymbol name="chevron.right" size={20} color="#9BA1A6" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.row}>
+            <View style={styles.rowLeft}>
+              <IconSymbol name="paperplane.fill" size={22} color="#FFD700" />
+              <Text style={styles.rowLabel}>Terms &amp; Conditions</Text>
+            </View>
+            <IconSymbol name="chevron.right" size={20} color="#9BA1A6" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Logout */}
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={async () => {
+            await clearAuth();
+            router.replace('/login');
           }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: {
+    flex: 1,
+    backgroundColor: 'rgb(1 27 61)',
   },
-  titleContainer: {
+  content: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#9BA1A6',
+    marginBottom: 24,
+  },
+  profileCard: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  avatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#002b61',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    marginBottom: 12,
+  },
+  avatarText: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#FFD700',
+    letterSpacing: 2,
+  },
+  name: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  section: {
+    backgroundColor: '#00152f',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#1a2332',
+    overflow: 'hidden',
+  },
+  row: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+  },
+  rowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  rowLabel: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  logoutButton: {
+    marginTop: 24,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#FF6B6B',
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  logoutText: {
+    color: '#FF6B6B',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 1,
   },
 });
+

@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { saveAuthToken, saveUserData } from '@/utils/auth';
+import { registerUser, saveAuthToken, saveUserData } from '@/utils/auth';
 
 export default function SignUpScreen() {
   const [name, setName] = useState('');
@@ -13,18 +13,44 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSignUp = async () => {
-    // TODO: Implement actual sign up API call
-    // TODO: Add validation (password match, email format, etc.)
-    console.log('Sign Up:', { name, email, phone, password });
-    
-    // Save auth token and user data (temporary - replace with actual API response)
-    await saveAuthToken('dummy_token_' + Date.now());
-    await saveUserData({ name, email, phone });
-    
-    // Navigate to home
-    router.replace('/(tabs)');
+    if (!name || !email || !password || !confirmPassword) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const { user, token } = await registerUser({
+        name,
+        email,
+        password,
+      });
+
+      await saveAuthToken(token);
+      await saveUserData({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone,
+      });
+
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      setError(err?.message || 'Unable to sign up. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -45,6 +71,8 @@ export default function SignUpScreen() {
           <View style={styles.formContainer}>
             <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>Join Ayuuto to get started</Text>
+
+            {error && <Text style={styles.errorText}>{error}</Text>}
 
             {/* Name Input */}
             <View style={styles.inputContainer}>
@@ -138,8 +166,12 @@ export default function SignUpScreen() {
             </View>
 
             {/* Sign Up Button */}
-            <TouchableOpacity style={styles.signUpButton} onPress={handleSignUp}>
-              <Text style={styles.signUpButtonText}>SIGN UP</Text>
+            <TouchableOpacity style={styles.signUpButton} onPress={handleSignUp} disabled={isLoading}>
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.signUpButtonText}>SIGN UP</Text>
+              )}
             </TouchableOpacity>
 
             {/* Login Link */}
@@ -161,7 +193,7 @@ export default function SignUpScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a2332',
+    backgroundColor: 'rgb(1 27 61)',
   },
   keyboardView: {
     flex: 1,
@@ -205,7 +237,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1f2a3a',
+    backgroundColor: 'rgb(0 10 26)',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#2a3441',
@@ -255,6 +287,10 @@ const styles = StyleSheet.create({
     color: '#FFD700',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  errorText: {
+    color: '#FF6B6B',
+    marginBottom: 16,
   },
 });
 

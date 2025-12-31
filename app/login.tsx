@@ -1,25 +1,42 @@
 import { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { saveAuthToken, saveUserData } from '@/utils/auth';
+import { loginUser, saveAuthToken, saveUserData } from '@/utils/auth';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async () => {
-    // TODO: Implement actual login API call
-    console.log('Login:', { email, password });
-    
-    // Save auth token and user data (temporary - replace with actual API response)
-    await saveAuthToken('dummy_token_' + Date.now());
-    await saveUserData({ email, name: email.split('@')[0] });
-    
-    // Navigate to home
-    router.replace('/(tabs)');
+    if (!email || !password) {
+      setError('Please enter your email and password.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const { user, token } = await loginUser({ email, password });
+
+      await saveAuthToken(token);
+      await saveUserData({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+      });
+
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      setError(err?.message || 'Unable to login. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -40,6 +57,8 @@ export default function LoginScreen() {
           <View style={styles.formContainer}>
             <Text style={styles.title}>Welcome Back</Text>
             <Text style={styles.subtitle}>Sign in to continue</Text>
+
+            {error && <Text style={styles.errorText}>{error}</Text>}
 
             {/* Email/Phone Input */}
             <View style={styles.inputContainer}>
@@ -86,8 +105,12 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             {/* Login Button */}
-            <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-              <Text style={styles.loginButtonText}>LOGIN</Text>
+            <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={isLoading}>
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.loginButtonText}>LOGIN</Text>
+              )}
             </TouchableOpacity>
 
             {/* Sign Up Link */}
@@ -109,7 +132,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a2332',
+    backgroundColor: 'rgb(1 27 61)',
   },
   keyboardView: {
     flex: 1,
@@ -149,10 +172,14 @@ const styles = StyleSheet.create({
     color: '#9BA1A6',
     marginBottom: 32,
   },
+  errorText: {
+    color: '#FF6B6B', 
+    marginBottom: 16,
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1f2a3a',
+    backgroundColor: 'rgb(0 10 26)',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#2a3441',

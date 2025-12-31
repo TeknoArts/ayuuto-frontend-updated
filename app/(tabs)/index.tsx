@@ -1,15 +1,30 @@
+import { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { getUserData, UserData } from '@/utils/auth';
 
 export default function HomeScreen() {
+  const [user, setUser] = useState<UserData | null>(null);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const storedUser = await getUserData();
+      setUser(storedUser);
+    };
+
+    loadUser();
+  }, []);
+
+  const displayName = user?.name || user?.email || 'Friend';
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.welcomeText}>Welcome to Ayuuto, Amina!</Text>
+            <Text style={styles.welcomeText}>Welcome to Ayuuto, {displayName}!</Text>
             <Text style={styles.sloganText}>ORGANIZE WITH TRUST, CELEBRATE TOGETHER.</Text>
           </View>
           <TouchableOpacity style={styles.flagButton}>
@@ -53,7 +68,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a2332',
+    backgroundColor: 'rgb(1 27 61)',
   },
   scrollView: {
     flex: 1,
@@ -141,7 +156,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   fundCard: {
-    backgroundColor: '#1f2a3a',
+    backgroundColor: '#002b61',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
