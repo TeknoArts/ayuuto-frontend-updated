@@ -67,6 +67,54 @@ export default function TabLayout() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="newgroup"
+          options={{
+            href: null, // Hide from tab bar
+          }}
+        />
+        <Tabs.Screen
+          name="add-participants"
+          options={{
+            href: null, // Hide from tab bar
+          }}
+        />
+        <Tabs.Screen
+          name="collection"
+          options={{
+            href: null, // Hide from tab bar
+          }}
+        />
+        <Tabs.Screen
+          name="group-created"
+          options={{
+            href: null, // Hide from tab bar
+          }}
+        />
+              <Tabs.Screen
+                name="group-details"
+                options={{
+                  href: null, // Hide from tab bar
+                }}
+              />
+              <Tabs.Screen
+                name="payment-processing"
+                options={{
+                  href: null, // Hide from tab bar
+                }}
+              />
+              <Tabs.Screen
+                name="next-round"
+                options={{
+                  href: null, // Hide from tab bar
+                }}
+              />
+              <Tabs.Screen
+                name="activity-log"
+                options={{
+                  href: null, // Hide from tab bar
+                }}
+              />
       </Tabs>
     </View>
   );

@@ -1,82 +1,141 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { clearAuth, getUserData, UserData } from '@/utils/auth';
+import { useI18n } from '@/utils/i18n';
 
 export default function SettingsScreen() {
   const [user, setUser] = useState<UserData | null>(null);
+  const { language, setLanguage, t } = useI18n();
 
   useEffect(() => {
-    const loadUser = async () => {
+    const loadData = async () => {
       const storedUser = await getUserData();
       setUser(storedUser);
     };
 
-    loadUser();
+    loadData();
   }, []);
 
+  const handleLanguageToggle = async (value: boolean) => {
+    const newLanguage = value ? 'so' : 'en';
+    try {
+      await setLanguage(newLanguage);
+      // Force a re-render by reloading the screen
+      // The I18nProvider will update all components using useI18n
+    } catch (error) {
+      console.error('Error saving language preference:', error);
+      Alert.alert(t('error'), 'Failed to change language. Please try again.');
+    }
+  };
+
   const displayName = user?.name || user?.email || 'Guest';
+  const displayEmail = user?.email || '';
   const initials =
-    (user?.name || user?.email || 'Ayuuto')
+    (user?.name || user?.email || 'A')
       .split(' ')
       .map((part) => part[0])
       .join('')
       .toUpperCase()
-      .slice(0, 2);
+      .slice(0, 1);
+
+  const handleLogout = () => {
+    Alert.alert(
+      t('logout'),
+      t('logoutConfirm'),
+      [
+        {
+          text: t('cancel'),
+          style: 'cancel',
+        },
+        {
+          text: t('logout'),
+          style: 'default',
+          onPress: async () => {
+            await clearAuth();
+            router.replace('/login');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      t('deleteAccount'),
+      t('deleteAccountConfirm'),
+      [
+        {
+          text: t('cancel'),
+          style: 'cancel',
+        },
+        {
+          text: t('delete'),
+          style: 'destructive',
+          onPress: async () => {
+            // TODO: Implement delete account API call
+            await clearAuth();
+            router.replace('/login');
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
-        <Text style={styles.title}>Settings</Text>
-        <Text style={styles.subtitle}>Manage your Ayuuto experience</Text>
+        <Text style={styles.title}>{t('settings')}</Text>
 
-        {/* Avatar + name */}
+        {/* Profile Card */}
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
-          <Text style={styles.name}>{displayName}</Text>
+          <View style={styles.profileInfo}>
+            <Text style={styles.name}>{displayName}</Text>
+            {displayEmail && (
+              <Text style={styles.email}>{displayEmail.toUpperCase()}</Text>
+            )}
+          </View>
         </View>
 
-        {/* Settings buttons */}
-        <View style={styles.section}>
-          <TouchableOpacity style={styles.row}>
-            <View style={styles.rowLeft}>
-              <IconSymbol name="person.fill" size={22} color="#FFD700" />
-              <Text style={styles.rowLabel}>Profile Settings</Text>
-            </View>
-            <IconSymbol name="chevron.right" size={20} color="#9BA1A6" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.row}>
-            <View style={styles.rowLeft}>
-              <IconSymbol name="lock.fill" size={22} color="#FFD700" />
-              <Text style={styles.rowLabel}>Privacy Settings</Text>
-            </View>
-            <IconSymbol name="chevron.right" size={20} color="#9BA1A6" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.row}>
-            <View style={styles.rowLeft}>
-              <IconSymbol name="paperplane.fill" size={22} color="#FFD700" />
-              <Text style={styles.rowLabel}>Terms &amp; Conditions</Text>
-            </View>
-            <IconSymbol name="chevron.right" size={20} color="#9BA1A6" />
-          </TouchableOpacity>
+        {/* Language Selection Card */}
+        <View style={styles.languageCard}>
+          <View style={styles.languageLeft}>
+            <IconSymbol name="globe" size={20} color="#FFFFFF" />
+            <Text style={styles.flagEmoji}>{language === 'en' ? '🇬🇧' : '🇸🇴'}</Text>
+            <Text style={styles.languageText}>{language === 'en' ? t('english') : t('somali')}</Text>
+          </View>
+          <Switch
+            value={language === 'so'}
+            onValueChange={handleLanguageToggle}
+            trackColor={{ false: '#1a2332', true: '#FFD700' }}
+            thumbColor={language === 'so' ? '#FFFFFF' : '#9BA1A6'}
+            ios_backgroundColor="#1a2332"
+          />
         </View>
 
-        {/* Logout */}
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={async () => {
-            await clearAuth();
-            router.replace('/login');
-          }}>
-          <Text style={styles.logoutText}>Logout</Text>
+        {/* Logout Card */}
+        <TouchableOpacity 
+          style={styles.logoutCard}
+          onPress={handleLogout}
+          activeOpacity={0.8}>
+          <IconSymbol name="rectangle.portrait.and.arrow.right" size={20} color="#61a5fb" />
+          <Text style={styles.logoutText}>{t('logout')}</Text>
+        </TouchableOpacity>
+
+        {/* Delete Account Card */}
+        <TouchableOpacity 
+          style={styles.deleteAccountCard}
+          onPress={handleDeleteAccount}
+          activeOpacity={0.8}>
+          <IconSymbol name="trash.fill" size={20} color="#9BA1A6" />
+          <Text style={styles.deleteAccountText}>{t('deleteAccount')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -95,77 +154,109 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#9BA1A6',
+    color: '#FFD700',
     marginBottom: 24,
+    letterSpacing: 1,
   },
   profileCard: {
+    backgroundColor: '#002b61',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: '#1a2332',
   },
   avatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: '#002b61',
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    backgroundColor: '#FFD700',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFD700',
-    marginBottom: 12,
+    marginRight: 16,
   },
   avatarText: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#FFD700',
-    letterSpacing: 2,
+    color: '#000000',
+    letterSpacing: 0,
+  },
+  profileInfo: {
+    flex: 1,
   },
   name: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    marginBottom: 4,
+    letterSpacing: 0.5,
   },
-  section: {
-    backgroundColor: '#00152f',
+  email: {
+    fontSize: 14,
+    color: '#9BA1A6',
+    letterSpacing: 0.5,
+  },
+  languageCard: {
+    backgroundColor: '#002b61',
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#1a2332',
-    overflow: 'hidden',
-  },
-  row: {
+    padding: 20,
+    marginBottom: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 18,
+    borderWidth: 1,
+    borderColor: '#1a2332',
   },
-  rowLeft: {
+  languageLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  rowLabel: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
+  flagEmoji: {
+    fontSize: 20,
   },
-  logoutButton: {
-    marginTop: 24,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#FF6B6B',
-    paddingVertical: 14,
+  languageText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  logoutCard: {
+    backgroundColor: '#002b61',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#1a2332',
   },
   logoutText: {
-    color: '#FF6B6B',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#61a5fb',
     letterSpacing: 1,
+    flex: 1,
+  },
+  deleteAccountCard: {
+    backgroundColor: '#4a1a3d',
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#6a2a4d',
+  },
+  deleteAccountText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FF6B6B',
+    letterSpacing: 1,
+    flex: 1,
   },
 });
 

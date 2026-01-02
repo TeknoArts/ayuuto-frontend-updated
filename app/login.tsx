@@ -14,7 +14,6 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      setError('Please enter your email and password.');
       return;
     }
 
@@ -33,10 +32,28 @@ export default function LoginScreen() {
 
       router.replace('/(tabs)');
     } catch (err: any) {
-      setError(err?.message || 'Unable to login. Please try again.');
+      // Only show error for authentication failures (invalid credentials)
+      const errorMessage = err?.message || '';
+      if (errorMessage.toLowerCase().includes('invalid credentials') || 
+          errorMessage.toLowerCase().includes('failed to login')) {
+        setError('Invalid email or password. Please try again.');
+      } else {
+        // Log other errors but don't display them
+        console.error('Login error:', err);
+      }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+    if (error) setError(null);
+  };
+
+  const handlePasswordChange = (text: string) => {
+    setPassword(text);
+    if (error) setError(null);
   };
 
   return (
@@ -68,7 +85,7 @@ export default function LoginScreen() {
                 placeholder="Email or Phone"
                 placeholderTextColor="#9BA1A6"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={handleEmailChange}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -83,7 +100,7 @@ export default function LoginScreen() {
                 placeholder="Password"
                 placeholderTextColor="#9BA1A6"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={handlePasswordChange}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -173,8 +190,10 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   errorText: {
-    color: '#FF6B6B', 
+    color: '#FF6B6B',
+    fontSize: 14,
     marginBottom: 16,
+    textAlign: 'center',
   },
   inputContainer: {
     flexDirection: 'row',

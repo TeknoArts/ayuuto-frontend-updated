@@ -5,10 +5,56 @@ import * as SecureStore from 'expo-secure-store';
 const AUTH_TOKEN_KEY = 'auth_token';
 const USER_DATA_KEY = 'user_data';
 
-// Backend API base URL
-// NOTE: When testing on a real device, replace "localhost" with your machine's LAN IP.
-// Make sure this PORT matches the one in ayuuto-backend/server.js
-const API_BASE_URL = 'http://192.168.18.116:5001/api';
+// Backend API Configuration
+// ============================================
+// IMPORTANT: Update these settings based on where you're running the app
+// ============================================
+
+// Set to true if testing on a PHYSICAL DEVICE (iPhone/Android phone)
+// Set to false if testing on SIMULATOR/EMULATOR
+const IS_PHYSICAL_DEVICE = true; // Change this based on your setup
+
+// Your machine's LAN IP address (for physical devices)
+// Find your IP by running: ifconfig | grep "inet " | grep -v 127.0.0.1
+const PHYSICAL_DEVICE_IP = '192.168.18.122'; // Update this with your current LAN IP
+
+const BACKEND_PORT = 5001;
+
+// Automatically detects the correct URL based on platform and device type
+const getApiBaseUrl = () => {
+  let url: string;
+  
+  if (Platform.OS === 'web') {
+    url = `http://localhost:${BACKEND_PORT}/api`;
+  } else if (Platform.OS === 'ios') {
+    if (IS_PHYSICAL_DEVICE) {
+      // Physical iOS device - use your machine's IP
+      url = `http://${PHYSICAL_DEVICE_IP}:${BACKEND_PORT}/api`;
+    } else {
+      // iOS Simulator - use localhost
+      url = `http://localhost:${BACKEND_PORT}/api`;
+    }
+  } else if (Platform.OS === 'android') {
+    if (IS_PHYSICAL_DEVICE) {
+      // Physical Android device - use your machine's IP
+      url = `http://${PHYSICAL_DEVICE_IP}:${BACKEND_PORT}/api`;
+    } else {
+      // Android Emulator - use 10.0.2.2 (special IP for emulator to access host)
+      url = `http://10.0.2.2:${BACKEND_PORT}/api`;
+    }
+  } else {
+    url = `http://localhost:${BACKEND_PORT}/api`;
+  }
+  
+  // Log the URL being used for debugging
+  if (__DEV__) {
+    console.log(`[API] Using base URL: ${url} (Platform: ${Platform.OS}, Physical Device: ${IS_PHYSICAL_DEVICE})`);
+  }
+  
+  return url;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 export interface UserData {
   id?: string;
@@ -124,19 +170,40 @@ async function parseJsonSafe(response: Response): Promise<AuthResponse | null> {
   }
 }
 
+// Fetch with timeout helper
+async function fetchWithTimeout(url: string, options: RequestInit, timeout = 10000): Promise<Response> {
+  return Promise.race([
+    fetch(url, options),
+    new Promise<Response>((_, reject) =>
+      setTimeout(() => reject(new Error('Network request timed out. Please check if the backend server is running.')), timeout)
+    ),
+  ]);
+}
+
 // Call backend: register
 export async function registerUser(payload: {
   name: string;
   email: string;
   password: string;
 }): Promise<{ user: UserData; token: string }> {
-  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+  const url = `${API_BASE_URL}/auth/register`;
+  
+  if (__DEV__) {
+    console.log(`[API] Registering user: ${url}`);
+  }
+  
+  try {
+    const response = await fetchWithTimeout(
+      url,
+      {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
-  });
+      },
+      15000 // 15 second timeout
+    );
 
   const json = await parseJsonSafe(response);
 
@@ -151,6 +218,20 @@ export async function registerUser(payload: {
   }
 
   return json.data;
+  } catch (error: any) {
+    // Improve error messages for common issues
+    if (__DEV__) {
+      console.error('[API] Register error:', error);
+    }
+    
+    if (error.message.includes('timed out')) {
+      throw new Error(`Connection timeout. Make sure the backend server is running at ${API_BASE_URL}. If using a physical device, update PHYSICAL_DEVICE_IP in utils/auth.ts`);
+    }
+    if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
+      throw new Error(`Cannot connect to server at ${API_BASE_URL}. Check your network connection and server status. If using a physical device, make sure your IP is correct.`);
+    }
+    throw error;
+  }
 }
 
 // Call backend: login
@@ -158,13 +239,24 @@ export async function loginUser(payload: {
   email: string;
   password: string;
 }): Promise<{ user: UserData; token: string }> {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  const url = `${API_BASE_URL}/auth/login`;
+  
+  if (__DEV__) {
+    console.log(`[API] Logging in user: ${url}`);
+  }
+  
+  try {
+    const response = await fetchWithTimeout(
+      url,
+      {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
-  });
+      },
+      15000 // 15 second timeout
+    );
 
   const json = await parseJsonSafe(response);
 
@@ -179,6 +271,20 @@ export async function loginUser(payload: {
   }
 
   return json.data;
+  } catch (error: any) {
+    // Improve error messages for common issues
+    if (__DEV__) {
+      console.error('[API] Login error:', error);
+    }
+    
+    if (error.message.includes('timed out')) {
+      throw new Error(`Connection timeout. Make sure the backend server is running at ${API_BASE_URL}. If using a physical device, update PHYSICAL_DEVICE_IP in utils/auth.ts`);
+    }
+    if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
+      throw new Error(`Cannot connect to server at ${API_BASE_URL}. Check your network connection and server status. If using a physical device, make sure your IP is correct.`);
+    }
+    throw error;
+  }
 }
 
 

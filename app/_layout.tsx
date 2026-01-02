@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AppSplashScreen } from '@/components/splash-screen';
 import { isAuthenticated as checkAuth } from '@/utils/auth';
+import { I18nProvider } from '@/utils/i18n';
 
 // Prevent the native splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -49,11 +50,11 @@ export default function RootLayout() {
     }
   }, [isSplashVisible, isAuthenticated]);
 
-  if (isSplashVisible) {
-    return <AppSplashScreen onFinish={handleSplashFinish} />;
-  }
-
   return (
+    <I18nProvider>
+      {isSplashVisible ? (
+        <AppSplashScreen onFinish={handleSplashFinish} />
+      ) : (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="login" options={{ headerShown: false }} />
@@ -63,5 +64,7 @@ export default function RootLayout() {
       </Stack>
       <StatusBar style="light" />
     </ThemeProvider>
+      )}
+    </I18nProvider>
   );
 }
