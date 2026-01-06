@@ -266,9 +266,39 @@ export default function GroupDetailsScreen() {
     : participants;
   const nextRecipient = group.currentRecipient || null;
   
-  // Check if all participants have received payment (group is completed)
-  const allParticipantsPaidOut = sortedParticipants.length > 0 && 
-    sortedParticipants.every(p => p.hasReceivedPayment === true);
+  // Check if all participants have received payment at least once (group fully paid out)
+  const allParticipantsPaidOut =
+    sortedParticipants.length > 0 &&
+    sortedParticipants.every((p) => p.hasReceivedPayment === true);
+
+  // Check if everyone has paid into the *current* round
+  const allParticipantsPaidThisRound =
+    sortedParticipants.length > 0 &&
+    sortedParticipants.every((p) => p.isPaid === true);
+
+  // Check if all rounds are completed according to backend round status
+  const allRoundsCompleted =
+    group.rounds && group.rounds.length > 0
+      ? group.rounds.every((round) => round.status === 'COMPLETED')
+      : false;
+
+  // Final group completion flag used for UI:
+  // - everyone has received payout (backend rounds progressed), OR
+  // - all rounds are marked COMPLETED by backend, OR
+  // - last round and everyone has paid this round (frontend safety net)
+  const isLastRound =
+    sortedParticipants.length > 0 &&
+    (group.currentRecipientIndex || 0) >= sortedParticipants.length - 1;
+
+  const isGroupCompleted =
+    allParticipantsPaidOut ||
+    allRoundsCompleted ||
+    (isLastRound && allParticipantsPaidThisRound);
+
+  // Convenience: is the current recipient already marked paid for this round?
+  const currentRecipientIndexGlobal = group.currentRecipientIndex || 0;
+  const currentRecipientPaid =
+    sortedParticipants[currentRecipientIndexGlobal]?.isPaid === true;
 
   const handleShare = async () => {
     if (!group) return;
@@ -438,16 +468,20 @@ export default function GroupDetailsScreen() {
               const currentRecipientIndex = group.currentRecipientIndex || 0;
               const isFirst = index === currentRecipientIndex && group.isOrderSet;
               const isPaid = participant.isPaid === true;
-              // Explicitly check for hasReceivedPayment - if it's true, participant has already received payment
-              const hasReceivedPayment = participant.hasReceivedPayment === true;
+              // Participant has already received payout in some round,
+              // OR (for current recipient) has just been paid this round.
+              const hasReceivedPayment =
+                participant.hasReceivedPayment === true ||
+                (isFirst && isPaid);
               
               // Check if all other participants (excluding the current recipient) have paid
               // Note: Paid-out members still need to pay in subsequent rounds
               const otherParticipants = sortedParticipants.filter((_, i) => 
                 i !== currentRecipientIndex
               );
-              const allOthersPaid = otherParticipants.length > 0 && 
-                otherParticipants.every(p => p.isPaid === true);
+              const allOthersPaid =
+                otherParticipants.length > 0 &&
+                otherParticipants.every((p) => p.isPaid === true);
               
               // Determine if checkbox should be shown:
               // - Only show checkboxes AFTER order is set (group.isOrderSet must be true)
@@ -463,7 +497,7 @@ export default function GroupDetailsScreen() {
                     styles.participantCard,
                     (isFirst && styles.participantCardPaid),
                     (isPaid && !isFirst && styles.participantCardPaid),
-                    (allParticipantsPaidOut && styles.participantCardPaid)
+                    (isGroupCompleted && styles.participantCardPaid)
                   ]}>
                   <View style={styles.participantTopRow}>
                     <View style={styles.participantLeft}>
@@ -471,7 +505,7 @@ export default function GroupDetailsScreen() {
                         <View style={[
                           styles.orderNumber,
                           (isFirst || isPaid) && styles.orderNumberPaid,
-                          allParticipantsPaidOut && styles.orderNumberPaid
+                          isGroupCompleted && styles.orderNumberPaid
                         ]}>
                           <Text style={styles.orderNumberText}>{participant.order}</Text>
                         </View>
@@ -486,7 +520,8 @@ export default function GroupDetailsScreen() {
                     </View>
                     
             {/* Other Participants - Show checkbox or PAID status on the right (only if group is not completed and user can edit) */}
-            {shouldShowCheckbox && !allParticipantsPaidOut && canEdit && (
+            {/* Editable checkboxes: only when group not completed AND current recipient not yet paid */}
+            {shouldShowCheckbox && !isGroupCompleted && canEdit && !currentRecipientPaid && (
               <View style={styles.paymentStatusContainer}>
                 {isPaid ? (
                   <>
@@ -510,8 +545,9 @@ export default function GroupDetailsScreen() {
                 )}
               </View>
             )}
-            {/* Show read-only status when in view-only mode */}
-            {shouldShowCheckbox && !allParticipantsPaidOut && !canEdit && (
+            {/* Read-only status when group is completed, current recipient paid, or view-only */}
+            {shouldShowCheckbox &&
+              (!isGroupCompleted && (!canEdit || currentRecipientPaid)) && (
               <View style={styles.paymentStatusContainer}>
                 {isPaid ? (
                   <Text style={styles.paidStatus}>PAID</Text>
@@ -521,7 +557,7 @@ export default function GroupDetailsScreen() {
               </View>
             )}
                     {/* Show PAID OUT tag on the right when group is completed */}
-                    {allParticipantsPaidOut && hasReceivedPayment && (
+                    {isGroupCompleted && hasReceivedPayment && (
                       <View style={styles.paidOutTagInline}>
                         <Text style={styles.paidOutTextInline}>PAID OUT</Text>
                       </View>
@@ -544,8 +580,8 @@ export default function GroupDetailsScreen() {
           </View>
         </View>
 
-        {/* Completion Card - Show when all participants have been paid out */}
-        {allParticipantsPaidOut && (
+        {/* Completion Card - Show when Ayuuto is completed */}
+        {isGroupCompleted && (
           <View style={styles.completionCard}>
             <IconSymbol name="trophy.fill" size={60} color="#FFD700" />
             <Text style={styles.completionTitle}>AYUUTO COMPLETED</Text>
@@ -554,7 +590,7 @@ export default function GroupDetailsScreen() {
         )}
 
         {/* NEXT ROUND Button - Show when current recipient has paid and group is not completed and user can edit */}
-        {group.isOrderSet && !allParticipantsPaidOut && canEdit && (() => {
+        {group.isOrderSet && !isGroupCompleted && canEdit && (() => {
           const currentRecipientIndex = group.currentRecipientIndex || 0;
           const currentRecipient = sortedParticipants[currentRecipientIndex];
           return currentRecipient?.isPaid === true;
@@ -566,63 +602,59 @@ export default function GroupDetailsScreen() {
                 console.error('GroupDetailsScreen: Cannot start next round - groupId missing');
                 return;
               }
-              
+
               try {
                 console.log('NEXT ROUND button clicked, groupId:', groupId);
-                
-                // Reload group first to ensure we have the latest state
-                const latestGroup = await getGroupDetails(groupId);
-                if (!latestGroup) {
-                  throw new Error('Failed to load group details');
-                }
-                setGroup(latestGroup);
-                
+
                 const { nextRound } = await import('@/utils/api');
-                // Call nextRound API
                 console.log('Calling nextRound API...');
-                await nextRound(groupId);
-                console.log('nextRound API call successful, navigating to next-round screen');
-                
-                // Get next recipient info for dynamic display
-                // Reload group to get updated state after nextRound
-                const updatedGroupAfterNext = await getGroupDetails(groupId);
-                if (updatedGroupAfterNext) {
-                  const sortedParticipants = updatedGroupAfterNext.isOrderSet
-                    ? [...(updatedGroupAfterNext.participants || [])].sort((a, b) => (a.order || 0) - (b.order || 0))
-                    : (updatedGroupAfterNext.participants || []);
-                  const nextRecipientIndex = updatedGroupAfterNext.currentRecipientIndex || 0;
-                  const nextRecipient = sortedParticipants[nextRecipientIndex];
-                  const nextRecipientName = nextRecipient?.name || '';
-                  const roundNumber = (nextRecipientIndex + 1).toString();
-                  
-                  // Navigate to next-round loading screen
-                  console.log('GroupDetailsScreen: Attempting to navigate to next-round screen with groupId:', groupId);
-                  try {
-                    router.push({
-                      pathname: '/(tabs)/next-round',
-                      params: {
-                        groupId,
-                        nextRecipientName,
-                        roundNumber,
-                        timestamp: Date.now().toString(), // Force remount on each navigation
-                      },
-                    });
-                    console.log('GroupDetailsScreen: Navigation command sent to next-round screen');
-                  } catch (navError) {
-                    console.error('Navigation error:', navError);
-                    // Reload to show updated state even if navigation fails
-                    await loadGroupDetails();
-                    throw new Error('Failed to navigate to next round screen');
-                  }
+                const updatedGroup = await nextRound(groupId);
+                console.log('nextRound API call successful');
+
+                // Update local state with latest group data (including rounds)
+                setGroup(updatedGroup);
+
+                // Compute next recipient and round number from updated group
+                const participants = updatedGroup.participants || [];
+                const sorted = updatedGroup.isOrderSet
+                  ? [...participants].sort((a, b) => (a.order || 0) - (b.order || 0))
+                  : participants;
+
+                let nextRecipientName = '';
+                let roundNumber = '1';
+
+                if (updatedGroup.currentRound && updatedGroup.rounds) {
+                  roundNumber = updatedGroup.currentRound.roundNumber.toString();
+                  const recipient = sorted.find(
+                    (p) => p.id === updatedGroup.currentRound!.recipientParticipantId
+                  );
+                  nextRecipientName = recipient?.name || '';
                 } else {
-                  // Fallback if group reload fails
-                  router.push({
-                    pathname: '/(tabs)/next-round',
-                    params: {
-                      groupId,
-                    },
-                  });
+                  const nextIndex = updatedGroup.currentRecipientIndex || 0;
+                  const nextRecipient = sorted[nextIndex];
+                  nextRecipientName = nextRecipient?.name || '';
+                  roundNumber = (nextIndex + 1).toString();
                 }
+
+                // Navigate to next-round loading screen
+                console.log(
+                  'GroupDetailsScreen: Navigating to next-round screen with groupId:',
+                  groupId,
+                  'round:',
+                  roundNumber,
+                  'recipient:',
+                  nextRecipientName
+                );
+
+                router.push({
+                  pathname: '/(tabs)/next-round',
+                  params: {
+                    groupId,
+                    nextRecipientName,
+                    roundNumber,
+                    timestamp: Date.now().toString(), // Force remount on each navigation
+                  },
+                });
               } catch (error: any) {
                 console.error('Error starting next round:', error);
                 Alert.alert(
