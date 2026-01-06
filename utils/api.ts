@@ -22,7 +22,7 @@ const getApiBaseUrl = () => {
   return `http://localhost:${BACKEND_PORT}/api`;
 };
 
-const API_BASE_URL = getApiBaseUrl();
+export const API_BASE_URL = getApiBaseUrl();
 
 // Log API URL for debugging
 if (__DEV__) {
@@ -258,12 +258,50 @@ export async function getUserGroups(): Promise<Group[]> {
   } catch (error: any) {
     // Improve error messages for common issues
     if (error.message.includes('timed out')) {
-      throw new Error(`Connection timeout. Make sure the backend server is running at ${API_BASE_URL}. If using a physical device, ensure your device and computer are on the same network and update PHYSICAL_DEVICE_IP in utils/api.ts`);
+      const errorMsg = `Connection timeout!\n\nTrying to connect to: ${API_BASE_URL}\n\nTroubleshooting:\n1. Make sure backend is running: cd ayuuto-backend && npm start\n2. Find your IP: ifconfig | grep "inet " | grep -v 127.0.0.1\n3. Update IP in utils/api.ts line 7 (current: ${PHYSICAL_DEVICE_IP})\n4. Ensure phone and computer are on the SAME Wi-Fi network\n5. Check firewall allows port ${BACKEND_PORT}`;
+      throw new Error(errorMsg);
     }
     if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
-      throw new Error(`Cannot connect to server at ${API_BASE_URL}. Check your network connection and ensure the backend server is running.`);
+      const errorMsg = `Cannot connect to server!\n\nTrying to connect to: ${API_BASE_URL}\n\nTroubleshooting:\n1. Backend running? Check: http://${PHYSICAL_DEVICE_IP}:${BACKEND_PORT}/api/groups\n2. IP correct? Current: ${PHYSICAL_DEVICE_IP}\n3. Same Wi-Fi? Phone and computer must be on same network\n4. Firewall? Allow port ${BACKEND_PORT} or disable temporarily`;
+      throw new Error(errorMsg);
     }
     throw error;
+  }
+}
+
+// Register Push Token
+export async function registerPushToken(pushToken: string, platform: string, deviceId?: string): Promise<void> {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(`${API_BASE_URL}/users/push-token`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ pushToken, platform, deviceId }),
+  });
+
+  const json: ApiResponse<void> = await response.json();
+
+  if (!response.ok || !json.success) {
+    throw new Error(json.message || 'Failed to register push token');
+  }
+}
+
+// Send Test Notification
+export async function sendTestNotification(title?: string, body?: string, data?: Record<string, any>): Promise<void> {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(`${API_BASE_URL}/users/test-notification`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      title: title || 'Test Notification',
+      body: body || 'This is a test notification from the app!',
+      data: data || {},
+    }),
+  });
+
+  const json: ApiResponse<any> = await response.json();
+
+  if (!response.ok || !json.success) {
+    throw new Error(json.message || 'Failed to send test notification');
   }
 }
 

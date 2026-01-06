@@ -225,10 +225,12 @@ export async function registerUser(payload: {
     }
     
     if (error.message.includes('timed out')) {
-      throw new Error(`Connection timeout. Make sure the backend server is running at ${API_BASE_URL}. If using a physical device, update PHYSICAL_DEVICE_IP in utils/auth.ts`);
+      const errorMsg = `Connection timeout!\n\nTrying to connect to: ${API_BASE_URL}\n\nTroubleshooting:\n1. Make sure backend is running: cd ayuuto-backend && npm start\n2. Find your IP: ifconfig | grep "inet " | grep -v 127.0.0.1\n3. Update IP in utils/auth.ts line 19 (current: ${PHYSICAL_DEVICE_IP})\n4. Ensure phone and computer are on the SAME Wi-Fi network\n5. Check firewall allows port ${BACKEND_PORT}`;
+      throw new Error(errorMsg);
     }
     if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
-      throw new Error(`Cannot connect to server at ${API_BASE_URL}. Check your network connection and server status. If using a physical device, make sure your IP is correct.`);
+      const errorMsg = `Cannot connect to server!\n\nTrying to connect to: ${API_BASE_URL}\n\nTroubleshooting:\n1. Backend running? Check: http://${PHYSICAL_DEVICE_IP}:${BACKEND_PORT}/api/auth/register\n2. IP correct? Current: ${PHYSICAL_DEVICE_IP}\n3. Same Wi-Fi? Phone and computer must be on same network\n4. Firewall? Allow port ${BACKEND_PORT} or disable temporarily`;
+      throw new Error(errorMsg);
     }
     throw error;
   }
@@ -278,10 +280,12 @@ export async function loginUser(payload: {
     }
     
     if (error.message.includes('timed out')) {
-      throw new Error(`Connection timeout. Make sure the backend server is running at ${API_BASE_URL}. If using a physical device, update PHYSICAL_DEVICE_IP in utils/auth.ts`);
+      const errorMsg = `Connection timeout!\n\nTrying to connect to: ${API_BASE_URL}\n\nTroubleshooting:\n1. Make sure backend is running: cd ayuuto-backend && npm start\n2. Find your IP: ifconfig | grep "inet " | grep -v 127.0.0.1\n3. Update IP in utils/auth.ts line 19 (current: ${PHYSICAL_DEVICE_IP})\n4. Ensure phone and computer are on the SAME Wi-Fi network\n5. Check firewall allows port ${BACKEND_PORT}`;
+      throw new Error(errorMsg);
     }
     if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
-      throw new Error(`Cannot connect to server at ${API_BASE_URL}. Check your network connection and server status. If using a physical device, make sure your IP is correct.`);
+      const errorMsg = `Cannot connect to server!\n\nTrying to connect to: ${API_BASE_URL}\n\nTroubleshooting:\n1. Backend running? Check: http://${PHYSICAL_DEVICE_IP}:${BACKEND_PORT}/api/auth/login\n2. IP correct? Current: ${PHYSICAL_DEVICE_IP}\n3. Same Wi-Fi? Phone and computer must be on same network\n4. Firewall? Allow port ${BACKEND_PORT} or disable temporarily`;
+      throw new Error(errorMsg);
     }
     throw error;
   }

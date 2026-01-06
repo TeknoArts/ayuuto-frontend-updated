@@ -4,11 +4,13 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
+import * as Notifications from 'expo-notifications';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AppSplashScreen } from '@/components/splash-screen';
 import { isAuthenticated as checkAuth } from '@/utils/auth';
 import { I18nProvider } from '@/utils/i18n';
+import { setupNotificationListeners, initializePushNotifications } from '@/utils/notifications';
 
 // Prevent the native splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -28,9 +30,38 @@ export default function RootLayout() {
     const checkAuthStatus = async () => {
       const authStatus = await checkAuth();
       setIsAuthenticated(authStatus);
+      
+      // Initialize push notifications if authenticated
+      if (authStatus) {
+        await initializePushNotifications();
+      }
     };
     checkAuthStatus();
   }, []);
+
+  // Setup notification listeners
+  useEffect(() => {
+    const removeListeners = setupNotificationListeners(
+      (notification) => {
+        console.log('Notification received:', notification);
+        // Handle notification received while app is in foreground
+      },
+      (response) => {
+        console.log('Notification tapped:', response);
+        const data = response.notification.request.content.data;
+        
+        // Navigate based on notification data
+        if (data?.groupId) {
+          router.push({
+            pathname: '/(tabs)/group-details',
+            params: { groupId: data.groupId },
+          });
+        }
+      }
+    );
+
+    return removeListeners;
+  }, [router]);
 
   const handleSplashFinish = () => {
     setIsSplashVisible(false);

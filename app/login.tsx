@@ -30,6 +30,10 @@ export default function LoginScreen() {
         email: user.email,
       });
 
+      // Initialize push notifications after successful login
+      const { initializePushNotifications } = await import('@/utils/notifications');
+      await initializePushNotifications();
+
       router.replace('/(tabs)');
     } catch (err: any) {
       // Only show error for authentication failures (invalid credentials)
