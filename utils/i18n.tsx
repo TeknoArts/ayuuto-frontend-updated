@@ -77,7 +77,7 @@ const translations = {
     // Next Round
     nextRoundStarting: 'NEXT ROUND',
     starting: 'STARTING',
-    next: 'Next:',
+    nextLabel: 'Next:',
     
     // Group Created
     groupCreated: 'GROUP CREATED',
@@ -164,7 +164,7 @@ const translations = {
     // Next Round
     nextRoundStarting: 'WAREEGGA SOO SOCDA',
     starting: 'WAA LA BILAABAYAA',
-    next: 'Soo socda:',
+    nextLabel: 'Soo socda:',
     
     // Group Created
     groupCreated: 'KOONTA WAA LA ABUURAY',

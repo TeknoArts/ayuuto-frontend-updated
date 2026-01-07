@@ -16,7 +16,7 @@ const IS_PHYSICAL_DEVICE = true; // Change this based on your setup
 
 // Your machine's LAN IP address (for physical devices)
 // Find your IP by running: ifconfig | grep "inet " | grep -v 127.0.0.1
-const PHYSICAL_DEVICE_IP = '192.168.18.116'; // Update this with your current LAN IP
+const PHYSICAL_DEVICE_IP = '192.168.18.122'; // Update this with your current LAN IP
 
 const BACKEND_PORT = 5001;
 
@@ -180,6 +180,11 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeout = 100
   ]);
 }
 
+// Generic auth API error handler for register/login/forgot/reset flows
+function buildNetworkErrorMessage(path: string): string {
+  return `Cannot connect to server!\n\nTrying to connect to: ${API_BASE_URL}${path}\n\nTroubleshooting:\n1. Backend running? Check: http://${PHYSICAL_DEVICE_IP}:${BACKEND_PORT}${path}\n2. IP correct? Current: ${PHYSICAL_DEVICE_IP}\n3. Same Wi-Fi? Phone and computer must be on same network\n4. Firewall? Allow port ${BACKEND_PORT} or disable temporarily`;
+}
+
 // Call backend: register
 export async function registerUser(payload: {
   name: string;
@@ -241,7 +246,8 @@ export async function loginUser(payload: {
   email: string;
   password: string;
 }): Promise<{ user: UserData; token: string }> {
-  const url = `${API_BASE_URL}/auth/login`;
+  const path = '/auth/login';
+  const url = `${API_BASE_URL}${path}`;
   
   if (__DEV__) {
     console.log(`[API] Logging in user: ${url}`);
@@ -284,8 +290,114 @@ export async function loginUser(payload: {
       throw new Error(errorMsg);
     }
     if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
-      const errorMsg = `Cannot connect to server!\n\nTrying to connect to: ${API_BASE_URL}\n\nTroubleshooting:\n1. Backend running? Check: http://${PHYSICAL_DEVICE_IP}:${BACKEND_PORT}/api/auth/login\n2. IP correct? Current: ${PHYSICAL_DEVICE_IP}\n3. Same Wi-Fi? Phone and computer must be on same network\n4. Firewall? Allow port ${BACKEND_PORT} or disable temporarily`;
+      throw new Error(buildNetworkErrorMessage('/auth/login'));
+    }
+    throw error;
+  }
+}
+
+// Call backend: request password reset (by email only)
+export async function requestPasswordReset(payload: {
+  email: string;
+}): Promise<string> {
+  const path = '/auth/forgot-password';
+  const url = `${API_BASE_URL}${path}`;
+
+  if (__DEV__) {
+    console.log(`[API] Requesting password reset: ${url}`);
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      },
+      15000
+    );
+
+    const json = await parseJsonSafe(response);
+
+    if (!json) {
+      const statusMessage = response.ok ? 'Empty response from server' : `Server error (${response.status})`;
+      throw new Error(statusMessage);
+    }
+
+    if (!response.ok || !json.success) {
+      const message = json.message || 'Failed to request password reset';
+      throw new Error(message);
+    }
+
+    return json.message || 'If an account with that email exists, you will receive reset instructions.';
+  } catch (error: any) {
+    if (__DEV__) {
+      console.error('[API] Forgot password error:', error);
+    }
+
+    if (error.message.includes('timed out')) {
+      const errorMsg = `Connection timeout!\n\nTrying to connect to: ${API_BASE_URL}${path}\n\nTroubleshooting:\n1. Make sure backend is running: cd ayuuto-backend && npm start\n2. Find your IP: ifconfig | grep "inet " | grep -v 127.0.0.1\n3. Update IP in utils/auth.ts line 19 (current: ${PHYSICAL_DEVICE_IP})\n4. Ensure phone and computer are on the SAME Wi-Fi network\n5. Check firewall allows port ${BACKEND_PORT}`;
       throw new Error(errorMsg);
+    }
+    if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
+      throw new Error(buildNetworkErrorMessage(path));
+    }
+    throw error;
+  }
+}
+
+// Call backend: reset password using email + new password
+export async function resetPassword(payload: {
+  email: string;
+  newPassword: string;
+}): Promise<string> {
+  const path = '/auth/reset-password';
+  const url = `${API_BASE_URL}${path}`;
+
+  if (__DEV__) {
+    console.log(`[API] Resetting password: ${url}`);
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      },
+      15000
+    );
+
+    const json = await parseJsonSafe(response);
+
+    if (!json) {
+      const statusMessage = response.ok ? 'Empty response from server' : `Server error (${response.status})`;
+      throw new Error(statusMessage);
+    }
+
+    if (!response.ok || !json.success) {
+      const message = json.message || 'Failed to reset password';
+      throw new Error(message);
+    }
+
+    return json.message || 'Password has been reset successfully.';
+  } catch (error: any) {
+    if (__DEV__) {
+      console.error('[API] Reset password error:', error);
+    }
+
+    if (error.message.includes('timed out')) {
+      const errorMsg = `Connection timeout!\n\nTrying to connect to: ${API_BASE_URL}${path}\n\nTroubleshooting:\n1. Make sure backend is running: cd ayuuto-backend && npm start\n2. Find your IP: ifconfig | grep "inet " | grep -v 127.0.0.1\n3. Update IP in utils/auth.ts line 19 (current: ${PHYSICAL_DEVICE_IP})\n4. Ensure phone and computer are on the SAME Wi-Fi network\n5. Check firewall allows port ${BACKEND_PORT}`;
+      throw new Error(errorMsg);
+    }
+    if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
+      throw new Error(buildNetworkErrorMessage(path));
     }
     throw error;
   }

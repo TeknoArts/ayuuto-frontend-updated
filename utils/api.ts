@@ -4,7 +4,7 @@ import { getAuthToken } from './auth';
 // Backend API Configuration
 // Set to true if testing on a physical device, false for simulator/emulator
 const IS_PHYSICAL_DEVICE = true;
-const PHYSICAL_DEVICE_IP = '192.168.18.116'; // Update this to your computer's IP address
+const PHYSICAL_DEVICE_IP = '192.168.18.122'; // Update this to your computer's IP address
 const BACKEND_PORT = 5001;
 
 const getApiBaseUrl = () => {
