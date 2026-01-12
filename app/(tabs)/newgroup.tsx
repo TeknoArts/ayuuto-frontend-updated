@@ -10,8 +10,6 @@ export default function NewGroupScreen() {
   const [memberCount, setMemberCount] = useState('');
   const [isGroupNameFocused, setIsGroupNameFocused] = useState(false);
   const [isMemberCountFocused, setIsMemberCountFocused] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   // Reset form when screen comes into focus
   useFocusEffect(
@@ -20,8 +18,6 @@ export default function NewGroupScreen() {
       setMemberCount('');
       setIsGroupNameFocused(false);
       setIsMemberCountFocused(false);
-      setError(null);
-      setIsLoading(false);
     }, [])
   );
 
@@ -39,7 +35,7 @@ export default function NewGroupScreen() {
     setMemberCount(newValue.toString());
   };
 
-  const handleNext = async () => {
+  const handleNext = () => {
     if (!isFormValid) {
       return;
     }
@@ -55,27 +51,15 @@ export default function NewGroupScreen() {
       return;
     }
     
-    try {
-      setIsLoading(true);
-      setError(null);
-      const { createGroup } = await import('@/utils/api');
-      const group = await createGroup(groupName, count);
-      
-      // Navigate to add participants screen
-      router.push({
-        pathname: '/(tabs)/add-participants',
-        params: {
-          groupId: group.id,
-          groupName,
-          memberCount,
-        },
-      });
-    } catch (error: any) {
-      console.error('Error creating group:', error);
-      setError(error?.message || 'Failed to create group. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+    // Step 2 in creation flow: configure participants for this group (no API call yet).
+    router.push({
+      pathname: '/(tabs)/add-participants',
+      params: {
+        groupName,
+        memberCount,
+        fromWizard: 'true',
+      },
+    });
   };
 
   return (
@@ -171,11 +155,6 @@ export default function NewGroupScreen() {
                   </View>
                 )}
               </View>
-            {/* Error Message */}
-            {error && (
-              <Text style={styles.errorText}>{error}</Text>
-            )}
-
             {/* Next Button */}
             <TouchableOpacity
               style={[
@@ -184,22 +163,14 @@ export default function NewGroupScreen() {
               ]}
               onPress={handleNext}
               activeOpacity={0.8}
-              disabled={!isFormValid || isLoading}>
-              {isLoading ? (
-                <Text style={[
+              disabled={!isFormValid}>
+              <Text
+                style={[
                   styles.nextButtonText,
-                  isFormValid && styles.nextButtonTextActive
+                  isFormValid && styles.nextButtonTextActive,
                 ]}>
-                  CREATING...
-                </Text>
-              ) : (
-                <Text style={[
-                  styles.nextButtonText,
-                  isFormValid && styles.nextButtonTextActive
-                ]}>
-                  NEXT
-                </Text>
-              )}
+                NEXT
+              </Text>
             </TouchableOpacity>
             </View>
           </View>

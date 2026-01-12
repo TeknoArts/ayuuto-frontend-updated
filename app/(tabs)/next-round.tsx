@@ -10,6 +10,8 @@ export default function NextRoundScreen() {
   const nextRecipientName = params.nextRecipientName as string || '';
   const roundNumber = params.roundNumber as string || '2';
   const timestamp = params.timestamp as string || Date.now().toString();
+  const mode = (params.mode as string) || 'next'; // 'next' | 'spin'
+  const isSpin = mode === 'spin';
   const progress = useRef(new Animated.Value(0)).current;
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
   const hasNavigated = useRef(false);
@@ -124,10 +126,16 @@ export default function NextRoundScreen() {
           </View>
         </View>
 
-        {/* Next Round Text */}
-        <Text style={styles.nextRoundText}>NEXT ROUND</Text>
-        <Text style={styles.roundNumberText}>ROUND {roundNumber}</Text>
-        {nextRecipientName ? (
+        {/* Header Text varies by mode */}
+        <Text style={styles.nextRoundText}>
+          {isSpin ? 'SETTING ORDER' : 'NEXT ROUND'}
+        </Text>
+        <Text style={styles.roundNumberText}>
+          {isSpin ? `PREPARING ROUND ${roundNumber}` : `ROUND ${roundNumber}`}
+        </Text>
+        {isSpin ? (
+          <Text style={styles.nextRecipientText}>Spinning participants…</Text>
+        ) : nextRecipientName ? (
           <Text style={styles.nextRecipientText}>Next: {nextRecipientName.toUpperCase()}</Text>
         ) : (
           <Text style={styles.startingText}>STARTING</Text>

@@ -4,7 +4,7 @@ import { getAuthToken } from './auth';
 // Backend API Configuration
 // Set to true if testing on a physical device, false for simulator/emulator
 const IS_PHYSICAL_DEVICE = true;
-const PHYSICAL_DEVICE_IP = '192.168.18.122'; // Update this to your computer's IP address
+const PHYSICAL_DEVICE_IP = '192.168.18.116'; // Update this to your computer's IP address
 const BACKEND_PORT = 5001;
 
 const getApiBaseUrl = () => {
@@ -106,6 +106,34 @@ export interface Participant {
   paidAt?: string | null;
   hasReceivedPayment?: boolean;
   receivedPaymentAt?: string | null;
+  userId?: string | null;
+  user?: {
+    id: string;
+    name: string;
+    email?: string;
+  } | null;
+}
+
+export interface GroupLogEntry {
+  id: string;
+  type: 'payment';
+  groupId: string;
+  participantId?: string | null;
+  participantName?: string | null;
+  amount?: number;
+  roundNumber?: number | null;
+  paidBy?: {
+    id: string;
+    name: string;
+  } | null;
+  paidAt?: string;
+  createdAt?: string;
+}
+
+export interface UserSummary {
+  id: string;
+  name: string;
+  email: string;
 }
 
 // Create Group
@@ -129,7 +157,7 @@ export async function createGroup(name: string, memberCount: number): Promise<Gr
 // Add Participants
 export async function addParticipants(
   groupId: string,
-  participants: string[]
+  participants: (string | { userId?: string; user?: string; name?: string; email?: string })[]
 ): Promise<Group> {
   const headers = await getAuthHeaders();
   const response = await fetchWithTimeout(
@@ -145,6 +173,26 @@ export async function addParticipants(
 
   if (!response.ok || !json.success || !json.data) {
     throw new Error(json.message || 'Failed to add participants');
+  }
+
+  return json.data.group;
+}
+
+// Remove Participant
+export async function removeParticipant(groupId: string, participantId: string): Promise<Group> {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/groups/${groupId}/participants/${participantId}`,
+    {
+      method: 'DELETE',
+      headers,
+    }
+  );
+
+  const json: ApiResponse<{ group: Group }> = await response.json();
+
+  if (!response.ok || !json.success || !json.data) {
+    throw new Error(json.message || 'Failed to remove participant');
   }
 
   return json.data.group;
@@ -348,5 +396,46 @@ export async function nextRound(groupId: string): Promise<Group> {
   }
 
   return json.data.group;
+}
+
+// Get Group Logs (payment history per group)
+export async function getGroupLogs(groupId: string): Promise<GroupLogEntry[]> {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/groups/${groupId}/logs`,
+    {
+      method: 'GET',
+      headers,
+    }
+  );
+
+  const json: ApiResponse<{ logs: GroupLogEntry[] }> = await response.json();
+
+  if (!response.ok || !json.success || !json.data) {
+    throw new Error(json.message || 'Failed to get group logs');
+  }
+
+  return json.data.logs;
+}
+
+// Get Users (for participant selection in group creation)
+export async function getUsers(query?: string): Promise<UserSummary[]> {
+  const headers = await getAuthHeaders();
+  const url =
+    `${API_BASE_URL}/users` +
+    (query && query.trim().length > 0 ? `?q=${encodeURIComponent(query.trim())}` : '');
+
+  const response = await fetchWithTimeout(url, {
+    method: 'GET',
+    headers,
+  });
+
+  const json: ApiResponse<{ users: UserSummary[] }> = await response.json();
+
+  if (!response.ok || !json.success || !json.data) {
+    throw new Error(json.message || 'Failed to load users');
+  }
+
+  return json.data.users;
 }
 

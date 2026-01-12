@@ -4,7 +4,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { getGroupDetails, spinForOrder, type Group, type Participant } from '@/utils/api';
+import {
+  getGroupDetails,
+  getGroupLogs,
+  spinForOrder,
+  type Group,
+  type Participant,
+  type GroupLogEntry,
+} from '@/utils/api';
 import { getUserData, UserData } from '@/utils/auth';
 
 export default function GroupDetailsScreen() {
@@ -17,6 +24,8 @@ export default function GroupDetailsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<UserData | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [logs, setLogs] = useState<GroupLogEntry[]>([]);
+  const [isLogsLoading, setIsLogsLoading] = useState(false);
 
   // Load user data
   useEffect(() => {
@@ -35,20 +44,31 @@ export default function GroupDetailsScreen() {
     
     try {
       setIsLoading(true);
-      const groupData = await getGroupDetails(groupId);
+      setIsLogsLoading(true);
+
+      const [groupData, logsData] = await Promise.all([
+        getGroupDetails(groupId),
+        getGroupLogs(groupId),
+      ]);
+
       if (groupData) {
         setGroup(groupData);
         
         // Check if current user is the owner
         if (user && groupData.createdBy) {
-          const createdById = typeof groupData.createdBy === 'object' 
+          const createdById =
+            typeof groupData.createdBy === 'object'
             ? groupData.createdBy.id 
             : groupData.createdBy;
           const userId = user.id;
-          const userIsOwner = createdById?.toString() === userId?.toString() ||
-                             createdById === userId;
+          const userIsOwner =
+            createdById?.toString() === userId?.toString() || createdById === userId;
           setIsOwner(userIsOwner);
         }
+      }
+
+      if (logsData) {
+        setLogs(logsData);
       }
     } catch (error: any) {
       console.error('Error loading group details:', error);
@@ -70,6 +90,7 @@ export default function GroupDetailsScreen() {
       );
     } finally {
       setIsLoading(false);
+      setIsLogsLoading(false);
     }
   }, [groupId, user]);
 
@@ -125,6 +146,27 @@ export default function GroupDetailsScreen() {
       const updatedGroup = await spinForOrder(groupId);
       if (updatedGroup) {
         setGroup(updatedGroup);
+
+        // After spinning, show a loading/animation screen similar to Next Round
+        const participants = updatedGroup.participants || [];
+        const sorted = updatedGroup.isOrderSet
+          ? [...participants].sort((a, b) => (a.order || 0) - (b.order || 0))
+          : participants;
+        const currentIndex = updatedGroup.currentRecipientIndex || 0;
+        const current = sorted[currentIndex];
+        const nextRecipientName = current?.name || '';
+        const roundNumber = (currentIndex + 1).toString();
+
+        router.push({
+          pathname: '/(tabs)/next-round',
+          params: {
+            groupId,
+            nextRecipientName,
+            roundNumber,
+            mode: 'spin',
+            timestamp: Date.now().toString(), // Force remount per spin
+          },
+        });
       } else {
         throw new Error('Failed to spin for order');
       }
@@ -221,10 +263,16 @@ export default function GroupDetailsScreen() {
         // For other participants, just toggle payment status
         await updatePaymentStatus(groupId, participantId, newPaidStatus);
         
-        // Reload group details to get updated payment status
-        const updatedGroup = await getGroupDetails(groupId);
+        // Reload group details and logs to get updated payment status & history
+        const [updatedGroup, logsData] = await Promise.all([
+          getGroupDetails(groupId),
+          getGroupLogs(groupId),
+        ]);
         if (updatedGroup) {
           setGroup(updatedGroup);
+        }
+        if (logsData) {
+          setLogs(logsData);
         }
       }
     } catch (error: any) {
@@ -235,9 +283,15 @@ export default function GroupDetailsScreen() {
       );
       // Reload group details on error to ensure state is correct
       try {
-        const updatedGroup = await getGroupDetails(groupId);
+        const [updatedGroup, logsData] = await Promise.all([
+          getGroupDetails(groupId),
+          getGroupLogs(groupId),
+        ]);
         if (updatedGroup) {
           setGroup(updatedGroup);
+        }
+        if (logsData) {
+          setLogs(logsData);
         }
       } catch (reloadError) {
         console.error('Error reloading group details:', reloadError);
@@ -265,6 +319,10 @@ export default function GroupDetailsScreen() {
     ? [...participants].sort((a, b) => (a.order || 0) - (b.order || 0))
     : participants;
   const nextRecipient = group.currentRecipient || null;
+  const participantsCount = participants.length;
+  const isParticipantsComplete =
+    (group.memberCount ?? 0) > 0 &&
+    participantsCount === (group.memberCount ?? 0);
   
   // Check if all participants have received payment at least once (group fully paid out)
   const allParticipantsPaidOut =
@@ -310,9 +368,10 @@ export default function GroupDetailsScreen() {
       // Build share message with group details
       const participantsList = sortedParticipants
         .map((p, idx) => {
+          const displayName = (p as any).user?.name || p.name;
           const order = group.isOrderSet && p.order ? `${p.order}. ` : '';
           const status = p.hasReceivedPayment ? ' (PAID OUT)' : p.isPaid ? ' (PAID)' : ' (UNPAID)';
-          return `${order}${p.name.toUpperCase()}${status}`;
+          return `${order}${(displayName || '').toUpperCase()}${status}`;
         })
         .join('\n');
 
@@ -433,8 +492,29 @@ export default function GroupDetailsScreen() {
           </View>
         </View>
 
-        {/* Spin For Order Button - Only show if order is not set and user can edit */}
-        {!group.isOrderSet && canEdit && (
+        {/* Manage Participants Button - show when group is missing participants and user can edit */}
+        {canEdit && !group.isOrderSet && !isParticipantsComplete && (
+          <TouchableOpacity
+            style={[styles.spinButton, styles.addParticipantsButton]}
+            onPress={() => {
+              if (!groupId) return;
+              router.push({
+                pathname: '/(tabs)/manage-participants',
+                params: {
+                  groupId,
+                  groupName: group.name,
+                  memberCount: (group.memberCount ?? 0).toString(),
+                },
+              });
+            }}
+            activeOpacity={0.8}>
+            <IconSymbol name="person.2.fill" size={20} color="#001a3c" />
+            <Text style={styles.spinButtonText}>MANAGE PARTICIPANTS</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Spin For Order Button - Only show if order is not set, user can edit, and participants complete */}
+        {!group.isOrderSet && canEdit && isParticipantsComplete && (
           <TouchableOpacity 
             style={[styles.spinButton, isSpinning && styles.spinButtonDisabled]}
             onPress={handleSpin}
@@ -474,6 +554,8 @@ export default function GroupDetailsScreen() {
                 participant.hasReceivedPayment === true ||
                 (isFirst && isPaid);
               
+              const displayName = (participant as any).user?.name || participant.name;
+              
               // Check if all other participants (excluding the current recipient) have paid
               // Note: Paid-out members still need to pay in subsequent rounds
               const otherParticipants = sortedParticipants.filter((_, i) => 
@@ -510,7 +592,7 @@ export default function GroupDetailsScreen() {
                           <Text style={styles.orderNumberText}>{participant.order}</Text>
                         </View>
                       )}
-                      <Text style={styles.participantName}>{participant.name.toUpperCase()}</Text>
+                      <Text style={styles.participantName}>{(displayName || '').toUpperCase()}</Text>
                       {/* Show PAID OUT tag next to name for participants who have received payment */}
                       {hasReceivedPayment && (
                         <View style={styles.paidOutTagInline}>
@@ -580,6 +662,56 @@ export default function GroupDetailsScreen() {
           </View>
         </View>
 
+        {/* Group Activity / Logs */}
+        <View style={styles.logsSection}>
+          <Text style={styles.logsTitle}>GROUP ACTIVITY</Text>
+          {isLogsLoading ? (
+            <View style={styles.logsEmptyState}>
+              <Text style={styles.logsEmptyText}>Loading activity...</Text>
+            </View>
+          ) : logs.length === 0 ? (
+            <View style={styles.logsEmptyState}>
+              <Text style={styles.logsEmptyText}>No activity yet.</Text>
+            </View>
+          ) : (
+            <View style={styles.logsList}>
+              {logs.slice(0, 5).map((log) => {
+                const timestamp = log.paidAt || log.createdAt;
+                const dateLabel = timestamp
+                  ? new Date(timestamp).toLocaleString()
+                  : '';
+                return (
+                  <View key={log.id} style={styles.logItem}>
+                    <View style={styles.logLeft}>
+                      <View style={styles.logIcon}>
+                        <IconSymbol
+                          name="checkmark.circle.fill"
+                          size={18}
+                          color="#4CAF50"
+                        />
+                      </View>
+                      <View style={styles.logTextContainer}>
+                        <Text style={styles.logMainText}>
+                          {log.participantName
+                            ? `${log.participantName} paid`
+                            : 'Payment recorded'}
+                          {typeof log.roundNumber === 'number'
+                            ? ` • Round ${log.roundNumber}`
+                            : ''}
+                        </Text>
+                        {typeof log.amount === 'number' && log.amount > 0 && (
+                          <Text style={styles.logSubText}>Amount: ${log.amount}</Text>
+                        )}
+                      </View>
+                    </View>
+                    <Text style={styles.logTimeText}>{dateLabel}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
         {/* Completion Card - Show when Ayuuto is completed */}
         {isGroupCompleted && (
           <View style={styles.completionCard}>
@@ -602,10 +734,10 @@ export default function GroupDetailsScreen() {
                 console.error('GroupDetailsScreen: Cannot start next round - groupId missing');
                 return;
               }
-
+              
               try {
                 console.log('NEXT ROUND button clicked, groupId:', groupId);
-
+                
                 const { nextRound } = await import('@/utils/api');
                 console.log('Calling nextRound API...');
                 const updatedGroup = await nextRound(groupId);
@@ -635,8 +767,8 @@ export default function GroupDetailsScreen() {
                   nextRecipientName = nextRecipient?.name || '';
                   roundNumber = (nextIndex + 1).toString();
                 }
-
-                // Navigate to next-round loading screen
+                  
+                  // Navigate to next-round loading screen
                 console.log(
                   'GroupDetailsScreen: Navigating to next-round screen with groupId:',
                   groupId,
@@ -646,15 +778,15 @@ export default function GroupDetailsScreen() {
                   nextRecipientName
                 );
 
-                router.push({
-                  pathname: '/(tabs)/next-round',
-                  params: {
-                    groupId,
-                    nextRecipientName,
-                    roundNumber,
-                    timestamp: Date.now().toString(), // Force remount on each navigation
-                  },
-                });
+                    router.push({
+                      pathname: '/(tabs)/next-round',
+                      params: {
+                        groupId,
+                        nextRecipientName,
+                        roundNumber,
+                        timestamp: Date.now().toString(), // Force remount on each navigation
+                      },
+                    });
               } catch (error: any) {
                 console.error('Error starting next round:', error);
                 Alert.alert(
@@ -823,6 +955,9 @@ const styles = StyleSheet.create({
   },
   spinButtonDisabled: {
     opacity: 0.7,
+  },
+  addParticipantsButton: {
+    marginBottom: 16,
   },
   spinButtonText: {
     color: '#001a3c',
@@ -1063,5 +1198,65 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 0.5,
     lineHeight: 24,
+  },
+  logsSection: {
+    marginTop: 24,
+  },
+  logsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#bc9426',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  logsList: {
+    marginTop: 4,
+  },
+  logItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a2332',
+  },
+  logLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+  },
+  logIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#14304a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logTextContainer: {
+    flex: 1,
+  },
+  logMainText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  logSubText: {
+    fontSize: 12,
+    color: '#9BA1A6',
+    marginTop: 2,
+  },
+  logTimeText: {
+    fontSize: 11,
+    color: '#687c97',
+    marginLeft: 8,
+  },
+  logsEmptyState: {
+    paddingVertical: 12,
+  },
+  logsEmptyText: {
+    fontSize: 13,
+    color: '#9BA1A6',
   },
 });

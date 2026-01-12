@@ -45,6 +45,14 @@ export default function SignUpScreen() {
         phone,
       });
 
+      // Initialize push notifications after successful sign up
+      try {
+        const { initializePushNotifications } = await import('@/utils/notifications');
+        await initializePushNotifications();
+      } catch (notifyError) {
+        console.error('Error initializing push notifications after sign up:', notifyError);
+      }
+
       router.replace('/(tabs)');
     } catch (err: any) {
       setError(err?.message || 'Unable to sign up. Please try again.');

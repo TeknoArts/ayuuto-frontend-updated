@@ -12,50 +12,10 @@ export default function HomeScreen() {
   const { t } = useI18n();
   const params = useLocalSearchParams();
   const [user, setUser] = useState<UserData | null>(null);
-  const [groups, setGroups] = useState<Group[]>([]);
+  const [managedGroups, setManagedGroups] = useState<Group[]>([]);
+  const [joinedGroups, setJoinedGroups] = useState<Group[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadUser();
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      loadGroups();
-    }
-  }, [user]);
-
-  // Handle refresh param from navigation
-  useEffect(() => {
-    const refreshParam = params.refresh as string;
-    if (refreshParam) {
-      console.log('HomeScreen: Refresh param detected, reloading groups');
-      // Small delay to ensure navigation is complete
-      setTimeout(() => {
-        loadGroups();
-      }, 500);
-    }
-  }, [params.refresh, loadGroups]);
-
-  // Reload groups when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      console.log('HomeScreen: Screen focused, reloading groups');
-      // Small delay to ensure navigation is complete
-      const reload = async () => {
-        await new Promise(resolve => setTimeout(resolve, 300));
-        await loadGroups();
-      };
-      reload();
-      // No cleanup needed - we want this to run every time screen focuses
-    }, [loadGroups])
-  );
-
-    const loadUser = async () => {
-      const storedUser = await getUserData();
-      setUser(storedUser);
-    };
 
   const loadGroups = useCallback(async () => {
     // Get current user - try from state first, then from storage
@@ -78,8 +38,9 @@ export default function HomeScreen() {
       setIsLoading(true);
       console.log('HomeScreen: Loading groups for user:', currentUser.id);
       const userGroups = await getUserGroups();
-      // Filter to show only groups created by the user (AYUUTO MANAGER)
-      const managedGroups = userGroups.filter((g) => {
+
+      // Groups created by the user (AYUUTO MANAGER)
+      const managerGroups = userGroups.filter((g) => {
         if (!g.createdBy) {
           console.warn('Group missing createdBy:', g.name);
           return false;
@@ -115,18 +76,41 @@ export default function HomeScreen() {
         
         return matches;
       });
-      
-      // Sort by creation date (newest first)
-      managedGroups.sort((a, b) => {
+
+      // Groups where user is a participant but NOT the creator (MY AYUUTOS)
+      const participantGroups = userGroups.filter((g) => {
+        if (!g.createdBy) return false;
+        const createdById = typeof g.createdBy === 'object' ? g.createdBy?.id : g.createdBy;
+        const userId = currentUser!.id;
+        const isOwner = createdById?.toString() === userId?.toString();
+        return !isOwner;
+      });
+
+      // Sort both lists by creation date (newest first)
+      managerGroups.sort((a, b) => {
         const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         return dateB - dateA;
       });
-      
-      console.log('HomeScreen: Loaded groups - Total:', userGroups.length, 'Managed:', managedGroups.length, 'User ID:', currentUser.id);
-      
+      participantGroups.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
+
+      console.log(
+        'HomeScreen: Loaded groups - Total:',
+        userGroups.length,
+        'Managed:',
+        managerGroups.length,
+        'Joined:',
+        participantGroups.length,
+        'User ID:',
+        currentUser.id
+      );
+
       // Debug: Log first group's createdBy structure if we have groups but none match
-      if (managedGroups.length === 0 && userGroups.length > 0) {
+      if (managerGroups.length === 0 && userGroups.length > 0) {
         console.warn('HomeScreen: No managed groups found!');
         console.warn('HomeScreen: User ID:', currentUser.id);
         console.warn('HomeScreen: First group createdBy:', JSON.stringify(userGroups[0]?.createdBy, null, 2));
@@ -137,14 +121,61 @@ export default function HomeScreen() {
         });
       }
       
-      setGroups(managedGroups);
-      console.log('HomeScreen: Groups state updated successfully, count:', managedGroups.length);
+      setManagedGroups(managerGroups);
+      setJoinedGroups(participantGroups);
+      console.log(
+        'HomeScreen: Groups state updated successfully, managed:',
+        managerGroups.length,
+        'joined:',
+        participantGroups.length
+      );
     } catch (error) {
       console.error('Error loading groups:', error);
     } finally {
       setIsLoading(false);
     }
   }, [user]);
+
+  const loadUser = useCallback(async () => {
+    const storedUser = await getUserData();
+    setUser(storedUser);
+  }, []);
+
+  useEffect(() => {
+    loadUser();
+  }, [loadUser]);
+
+  useEffect(() => {
+    if (user) {
+      loadGroups();
+    }
+  }, [user, loadGroups]);
+
+  // Handle refresh param from navigation
+  useEffect(() => {
+    const refreshParam = params.refresh as string;
+    if (refreshParam) {
+      console.log('HomeScreen: Refresh param detected, reloading groups');
+      // Small delay to ensure navigation is complete
+      setTimeout(() => {
+        loadGroups();
+      }, 500);
+    }
+  }, [params.refresh, loadGroups]);
+
+  // Reload groups when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('HomeScreen: Screen focused, reloading groups');
+      // Small delay to ensure navigation is complete
+      const reload = async () => {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await loadGroups();
+      };
+      reload();
+      // No cleanup needed - we want this to run every time screen focuses
+    }, [loadGroups])
+  );
 
   const handleDeleteGroup = (groupId: string, groupName: string) => {
     Alert.alert(
@@ -160,14 +191,14 @@ export default function HomeScreen() {
           style: 'destructive',
           onPress: async () => {
             // Store the group being deleted for optimistic update
-            const groupToDelete = groups.find(g => g.id === groupId);
+            const groupToDelete = managedGroups.find((g) => g.id === groupId);
             
             try {
               // Set deleting state to show loading indicator
               setDeletingGroupId(groupId);
               
-              // Optimistically remove the group from the UI for immediate feedback
-              setGroups(prevGroups => prevGroups.filter(g => g.id !== groupId));
+              // Optimistically remove the group from the managed list for immediate feedback
+              setManagedGroups((prev) => prev.filter((g) => g.id !== groupId));
               
               // Delete the group from the backend
               await deleteGroup(groupId);
@@ -181,17 +212,7 @@ export default function HomeScreen() {
             } catch (error: any) {
               // If deletion fails, restore the group in the UI
               if (groupToDelete) {
-                setGroups(prevGroups => {
-                  // Insert the group back in its original position
-                  const newGroups = [...prevGroups];
-                  const originalIndex = groups.findIndex(g => g.id === groupId);
-                  if (originalIndex >= 0) {
-                    newGroups.splice(originalIndex, 0, groupToDelete);
-                  } else {
-                    newGroups.push(groupToDelete);
-                  }
-                  return newGroups;
-                });
+                setManagedGroups((prev) => [...prev, groupToDelete]);
               }
               
               setDeletingGroupId(null);
@@ -246,13 +267,13 @@ export default function HomeScreen() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>Loading...</Text>
             </View>
-          ) : groups.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>YOU DON'T MANAGE ANY GROUPS YET.</Text>
-          </View>
+          ) : managedGroups.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>YOU DON'T MANAGE ANY GROUPS YET.</Text>
+            </View>
           ) : (
             <FlatList
-              data={groups}
+              data={managedGroups}
               keyExtractor={(item) => item.id}
               renderItem={({ item: group }) => (
                 <View style={styles.groupCard}>
@@ -312,16 +333,48 @@ export default function HomeScreen() {
         {/* My Ayuutos Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitleBlue}>MY AYUUTOS</Text>
-          <View style={styles.fundCard}>
-            <View style={styles.fundCardHeader}>
-              <Text style={styles.fundName}>FRIDAY COMMUNITY FUND</Text>
-              <Text style={styles.turnIndicator}>TURN 2</Text>
+          {isLoading ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>Loading...</Text>
             </View>
-            <View style={styles.fundDetails}>
-              <IconSymbol name="dollarsign.circle.fill" size={16} color="#FFD700" />
-              <Text style={styles.fundDetailsText}>1500 • 3 Participants</Text>
+          ) : joinedGroups.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>YOU ARE NOT A PARTICIPANT IN ANY AYUUTO YET.</Text>
             </View>
-          </View>
+          ) : (
+            <FlatList
+              data={joinedGroups}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item: group }) => (
+                <View style={styles.groupCard}>
+                  <TouchableOpacity
+                    style={styles.groupCardContent}
+                    onPress={() => handleGroupPress(group.id)}
+                    activeOpacity={0.7}>
+                    <View style={styles.groupCardLeft}>
+                      <Text style={styles.groupCardName}>{group.name.toUpperCase()}</Text>
+                      <View style={styles.groupCardDetails}>
+                        <IconSymbol name="dollarsign.circle.fill" size={14} color="#FFD700" />
+                        <Text style={styles.groupCardDetailsText}>
+                          {(() => {
+                            const total = group.totalSavings ??
+                              ((group.amountPerPerson && group.memberCount)
+                                ? group.amountPerPerson * group.memberCount
+                                : 0);
+                            return `${total} • ${group.memberCount} Participants`;
+                          })()}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              )}
+              scrollEnabled={false}
+              ItemSeparatorComponent={() => <View style={styles.groupSeparator} />}
+              contentContainerStyle={styles.groupsListContainer}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

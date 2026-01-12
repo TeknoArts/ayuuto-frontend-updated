@@ -56,16 +56,49 @@ export default function CollectionScreen() {
       return;
     }
     try {
-      const { setCollectionDetails } = await import('@/utils/api');
-      const groupId = params.groupId as string;
-      
+      const { createGroup, addParticipants, setCollectionDetails } = await import('@/utils/api');
+
+      const existingGroupId = params.groupId as string | undefined;
+      const fromWizard = params.fromWizard === 'true';
+
+      let groupId = existingGroupId;
+
+      if (!groupId && fromWizard) {
+        const groupName = (params.groupName as string) || 'Ayuuto Group';
+        const memberCount = parseInt((params.memberCount as string) || '2') || 2;
+
+        // Create the group first
+        const group = await createGroup(groupName, memberCount);
+        groupId = group.id;
+
+        // Optionally attach participants if provided
+        const participantsParam = params.participants as string | undefined;
+        if (participantsParam) {
+          try {
+            const userIds: string[] = JSON.parse(participantsParam);
+            if (Array.isArray(userIds) && userIds.length > 0) {
+              const payload = userIds.map((id) => ({ userId: id }));
+              await addParticipants(groupId, payload as any);
+            }
+          } catch (e) {
+            console.warn('Failed to parse participants from params:', e);
+          }
+        }
+      }
+
+      if (!groupId) {
+        console.error('No groupId available for setting collection details.');
+        return;
+      }
+
+      // Set collection details for the group
       await setCollectionDetails(
         groupId,
         parseFloat(amount),
         frequency,
         parseInt(collectionDate)
       );
-      
+
       // Navigate to group created celebration screen
       router.push({
         pathname: '/(tabs)/group-created',
@@ -75,10 +108,11 @@ export default function CollectionScreen() {
           amount,
           frequency,
           collectionDate,
+          timestamp: Date.now().toString(),
         },
       });
     } catch (error: any) {
-      console.error('Error setting collection details:', error);
+      console.error('Error creating group / setting collection details:', error);
       // You can add error handling UI here
     }
   };
