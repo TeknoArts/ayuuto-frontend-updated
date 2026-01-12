@@ -6,12 +6,9 @@ import { router } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { clearAuth, getUserData, UserData } from '@/utils/auth';
 import { useI18n } from '@/utils/i18n';
-import { sendTestNotification } from '@/utils/api';
-import { ActivityIndicator } from 'react-native';
 
 export default function SettingsScreen() {
   const [user, setUser] = useState<UserData | null>(null);
-  const [isSendingTest, setIsSendingTest] = useState(false);
   const { language, setLanguage, t } = useI18n();
 
   useEffect(() => {
@@ -88,63 +85,6 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleTestNotification = async () => {
-    try {
-      setIsSendingTest(true);
-      
-      // First, try to register push token if not already registered
-      const { initializePushNotifications } = await import('@/utils/notifications');
-      await initializePushNotifications();
-      
-      // Small delay to ensure token is registered
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      await sendTestNotification(
-        'Test Notification',
-        'This is a test notification from the app! You should see this on your device.',
-        { type: 'test', timestamp: new Date().toISOString() }
-      );
-      Alert.alert(
-        'Success',
-        'Test notification sent! Check your device for the notification.',
-        [{ text: 'OK' }]
-      );
-    } catch (error: any) {
-      console.error('Error sending test notification:', error);
-      const errorMessage = error.message || 'Failed to send test notification.';
-      
-      if (errorMessage.includes('No push tokens') || errorMessage.includes('push token')) {
-        Alert.alert(
-          'No Push Token Registered',
-          'Push token is not registered. Please:\n\n1. Make sure you are on a physical device (not emulator)\n2. Logout and login again to register your push token\n3. Make sure app has notification permissions',
-          [
-            { text: 'OK' },
-            {
-              text: 'Try Registering Now',
-              onPress: async () => {
-                try {
-                  const { initializePushNotifications } = await import('@/utils/notifications');
-                  await initializePushNotifications();
-                  Alert.alert('Success', 'Push token registration attempted. Try sending test notification again.');
-                } catch (err: any) {
-                  Alert.alert('Error', err.message || 'Failed to register push token.');
-                }
-              },
-            },
-          ]
-        );
-      } else {
-        Alert.alert(
-          'Error',
-          errorMessage,
-          [{ text: 'OK' }]
-        );
-      }
-    } finally {
-      setIsSendingTest(false);
-    }
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -179,22 +119,6 @@ export default function SettingsScreen() {
             ios_backgroundColor="#1a2332"
           />
         </View>
-
-        {/* Test Notification Card */}
-        <TouchableOpacity 
-          style={styles.testNotificationCard}
-          onPress={handleTestNotification}
-          disabled={isSendingTest}
-          activeOpacity={0.8}>
-          {isSendingTest ? (
-            <ActivityIndicator size="small" color="#4CAF50" />
-          ) : (
-            <IconSymbol name="bell.fill" size={20} color="#4CAF50" />
-          )}
-          <Text style={styles.testNotificationText}>
-            {isSendingTest ? 'Sending...' : 'Test Notification'}
-          </Text>
-        </TouchableOpacity>
 
         {/* Logout Card */}
         <TouchableOpacity 
@@ -298,24 +222,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     letterSpacing: 0.5,
-  },
-  testNotificationCard: {
-    backgroundColor: '#002b61',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#1a2332',
-  },
-  testNotificationText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-    letterSpacing: 1,
-    flex: 1,
   },
   logoutCard: {
     backgroundColor: '#002b61',

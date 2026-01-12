@@ -22,10 +22,12 @@ export default function GroupDetailsScreen() {
   const [group, setGroup] = useState<Group | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [user, setUser] = useState<UserData | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [logs, setLogs] = useState<GroupLogEntry[]>([]);
   const [isLogsLoading, setIsLogsLoading] = useState(false);
+  const isLoadingRef = useRef(false);
 
   // Load user data
   useEffect(() => {
@@ -36,14 +38,25 @@ export default function GroupDetailsScreen() {
     loadUser();
   }, []);
 
-  const loadGroupDetails = useCallback(async () => {
+  const loadGroupDetails = useCallback(async (showLoading = false) => {
     if (!groupId) {
       setIsLoading(false);
+      setIsInitialLoad(false);
+      return;
+    }
+
+    // Prevent multiple simultaneous loads
+    if (isLoadingRef.current) {
+      console.log('GroupDetailsScreen: Load already in progress, skipping');
       return;
     }
     
     try {
-      setIsLoading(true);
+      isLoadingRef.current = true;
+      // Only show loading state on initial load or when explicitly requested
+      if (isInitialLoad || showLoading) {
+        setIsLoading(true);
+      }
       setIsLogsLoading(true);
 
       const [groupData, logsData] = await Promise.all([
@@ -91,32 +104,35 @@ export default function GroupDetailsScreen() {
     } finally {
       setIsLoading(false);
       setIsLogsLoading(false);
+      setIsInitialLoad(false);
+      isLoadingRef.current = false;
     }
-  }, [groupId, user]);
+  }, [groupId, user, isInitialLoad]);
 
   // Track if we just navigated with a refresh param to prevent duplicate reloads
   const refreshHandledRef = useRef<string | null>(null);
 
-  // Force reload when refresh param changes (from loading screens)
+  // Force reload when refresh param changes (from loading screens) - silent reload
   useEffect(() => {
     const refreshParam = params.refresh as string;
     if (refreshParam && groupId && refreshHandledRef.current !== refreshParam) {
-      console.log('GroupDetailsScreen: Refresh param detected, reloading group details');
+      console.log('GroupDetailsScreen: Refresh param detected, reloading group details (silent)');
       refreshHandledRef.current = refreshParam;
       // Small delay to ensure navigation is complete before reloading
       setTimeout(() => {
-        loadGroupDetails();
+        loadGroupDetails(false); // Silent reload
       }, 300);
     }
   }, [params.refresh, groupId, loadGroupDetails]);
 
   useEffect(() => {
     if (groupId) {
-      loadGroupDetails();
+      // Only show loading on initial load when groupId changes
+      loadGroupDetails(true);
     }
   }, [groupId, loadGroupDetails]);
 
-  // Reload when screen comes into focus (useful when navigating back)
+  // Reload when screen comes into focus (useful when navigating back) - silent reload
   // Skip if we just handled a refresh param to avoid duplicate reloads
   useFocusEffect(
     useCallback(() => {
@@ -124,10 +140,10 @@ export default function GroupDetailsScreen() {
         const refreshParam = params.refresh as string;
         // Only reload on focus if there's no refresh param (to avoid duplicate calls)
         if (!refreshParam) {
-          console.log('GroupDetailsScreen: Screen focused, reloading group details');
+          console.log('GroupDetailsScreen: Screen focused, reloading group details (silent)');
           // Add a small delay to ensure previous navigation is complete
           const timer = setTimeout(() => {
-            loadGroupDetails();
+            loadGroupDetails(false); // Silent reload
           }, 200);
           return () => clearTimeout(timer);
         } else {
@@ -436,6 +452,11 @@ export default function GroupDetailsScreen() {
             <IconSymbol name="chevron.left" size={20} color="#61a5fb" />
             <Text style={styles.backText}>HOME</Text>
           </TouchableOpacity>
+          {group && (
+            <Text style={styles.groupName} numberOfLines={1}>
+              {group.name.toUpperCase()}
+            </Text>
+          )}
           <TouchableOpacity style={styles.scrollButton}>
             <IconSymbol name="doc.text.fill" size={20} color="#D4A574" />
           </TouchableOpacity>
@@ -856,6 +877,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    flex: 0,
   },
   backText: {
     color: '#61a5fb',
@@ -863,8 +885,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
   },
+  groupName: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFD700',
+    letterSpacing: 1,
+    textAlign: 'center',
+    marginHorizontal: 12,
+  },
   scrollButton: {
     padding: 8,
+    flex: 0,
   },
   savingsCard: {
     backgroundColor: '#001b3d',

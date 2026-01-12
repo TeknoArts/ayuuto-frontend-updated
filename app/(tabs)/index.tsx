@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -15,9 +15,17 @@ export default function HomeScreen() {
   const [managedGroups, setManagedGroups] = useState<Group[]>([]);
   const [joinedGroups, setJoinedGroups] = useState<Group[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
+  const isLoadingRef = useRef(false);
 
-  const loadGroups = useCallback(async () => {
+  const loadGroups = useCallback(async (showLoading = false) => {
+    // Prevent multiple simultaneous loads
+    if (isLoadingRef.current) {
+      console.log('HomeScreen: Load already in progress, skipping');
+      return;
+    }
+
     // Get current user - try from state first, then from storage
     let currentUser = user;
     if (!currentUser || !currentUser.id) {
@@ -31,11 +39,16 @@ export default function HomeScreen() {
     if (!currentUser || !currentUser.id) {
       console.log('HomeScreen: Cannot load groups: user not available');
       setIsLoading(false);
+      setIsInitialLoad(false);
       return;
     }
     
     try {
-      setIsLoading(true);
+      isLoadingRef.current = true;
+      // Only show loading state on initial load or when explicitly requested
+      if (isInitialLoad || showLoading) {
+        setIsLoading(true);
+      }
       console.log('HomeScreen: Loading groups for user:', currentUser.id);
       const userGroups = await getUserGroups();
 
@@ -129,12 +142,27 @@ export default function HomeScreen() {
         'joined:',
         participantGroups.length
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading groups:', error);
+      
+      // If authentication error, redirect to login
+      if (error.message && (error.message.includes('Not authorized') || error.message.includes('token invalid') || error.message.includes('expired') || error.message.includes('Please log in again'))) {
+        console.log('HomeScreen: Authentication failed, redirecting to login');
+        // Clear auth and redirect to login
+        const { clearAuth } = await import('@/utils/auth');
+        await clearAuth();
+        router.replace('/login');
+        return;
+      }
+      
+      setManagedGroups([]);
+      setJoinedGroups([]);
     } finally {
       setIsLoading(false);
+      setIsInitialLoad(false);
+      isLoadingRef.current = false;
     }
-  }, [user]);
+  }, [user, isInitialLoad]);
 
   const loadUser = useCallback(async () => {
     const storedUser = await getUserData();
@@ -151,26 +179,26 @@ export default function HomeScreen() {
     }
   }, [user, loadGroups]);
 
-  // Handle refresh param from navigation
+  // Handle refresh param from navigation (silent reload)
   useEffect(() => {
     const refreshParam = params.refresh as string;
     if (refreshParam) {
-      console.log('HomeScreen: Refresh param detected, reloading groups');
+      console.log('HomeScreen: Refresh param detected, reloading groups (silent)');
       // Small delay to ensure navigation is complete
       setTimeout(() => {
-        loadGroups();
+        loadGroups(false); // Don't show loading state on refresh
       }, 500);
     }
   }, [params.refresh, loadGroups]);
 
-  // Reload groups when screen comes into focus
+  // Reload groups when screen comes into focus (but don't show loading state)
   useFocusEffect(
     useCallback(() => {
-      console.log('HomeScreen: Screen focused, reloading groups');
+      console.log('HomeScreen: Screen focused, reloading groups (silent)');
       // Small delay to ensure navigation is complete
       const reload = async () => {
         await new Promise((resolve) => setTimeout(resolve, 300));
-        await loadGroups();
+        await loadGroups(false); // Don't show loading state on focus
       };
       reload();
       // No cleanup needed - we want this to run every time screen focuses
@@ -228,10 +256,37 @@ export default function HomeScreen() {
   };
 
   const handleGroupPress = (groupId: string) => {
-    router.push({
-      pathname: '/(tabs)/group-details',
-      params: { groupId },
-    });
+    if (!groupId) {
+      console.error('HomeScreen: Cannot navigate - groupId is missing');
+      Alert.alert('Error', 'Group ID is missing. Please try again.');
+      return;
+    }
+    
+    // Convert to string and log for debugging
+    const groupIdString = String(groupId).trim();
+    console.log('HomeScreen: Navigating to group details');
+    console.log('HomeScreen: groupId type:', typeof groupId);
+    console.log('HomeScreen: groupId value:', groupId);
+    console.log('HomeScreen: groupIdString:', groupIdString);
+    
+    if (!groupIdString || groupIdString === 'undefined' || groupIdString === 'null') {
+      console.error('HomeScreen: Invalid groupId:', groupIdString);
+      Alert.alert('Error', 'Invalid group ID. Please try again.');
+      return;
+    }
+    
+    try {
+      router.push({
+        pathname: '/(tabs)/group-details',
+        params: { 
+          groupId: groupIdString,
+        },
+      });
+      console.log('HomeScreen: Navigation command executed');
+    } catch (error) {
+      console.error('HomeScreen: Navigation error:', error);
+      Alert.alert('Error', 'Failed to navigate to group details. Please try again.');
+    }
   };
 
   const displayName = user?.name || user?.email || 'Friend';
@@ -274,12 +329,18 @@ export default function HomeScreen() {
           ) : (
             <FlatList
               data={managedGroups}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.id || String(item)}
               renderItem={({ item: group }) => (
                 <View style={styles.groupCard}>
                   <TouchableOpacity
                     style={styles.groupCardContent}
-                    onPress={() => handleGroupPress(group.id)}
+                    onPress={() => {
+                      if (group.id) {
+                        handleGroupPress(group.id);
+                      } else {
+                        console.error('HomeScreen: Group missing id:', group);
+                      }
+                    }}
                     activeOpacity={0.7}>
                     <View style={styles.groupCardLeft}>
                       <Text style={styles.groupCardName}>{group.name.toUpperCase()}</Text>
@@ -344,12 +405,18 @@ export default function HomeScreen() {
           ) : (
             <FlatList
               data={joinedGroups}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.id || String(item)}
               renderItem={({ item: group }) => (
                 <View style={styles.groupCard}>
                   <TouchableOpacity
                     style={styles.groupCardContent}
-                    onPress={() => handleGroupPress(group.id)}
+                    onPress={() => {
+                      if (group.id) {
+                        handleGroupPress(group.id);
+                      } else {
+                        console.error('HomeScreen: Group missing id:', group);
+                      }
+                    }}
                     activeOpacity={0.7}>
                     <View style={styles.groupCardLeft}>
                       <Text style={styles.groupCardName}>{group.name.toUpperCase()}</Text>

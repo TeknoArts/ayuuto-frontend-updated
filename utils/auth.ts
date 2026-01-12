@@ -16,7 +16,7 @@ const IS_PHYSICAL_DEVICE = true; // Change this based on your setup
 
 // Your machine's LAN IP address (for physical devices)
 // Find your IP by running: ifconfig | grep "inet " | grep -v 127.0.0.1
-const PHYSICAL_DEVICE_IP = '192.168.18.116'; // Update this with your current LAN IP
+const PHYSICAL_DEVICE_IP = '10.213.115.128'; // Update this with your current LAN IP
 
 const BACKEND_PORT = 5001;
 
@@ -305,6 +305,7 @@ export async function requestPasswordReset(payload: {
 
   if (__DEV__) {
     console.log(`[API] Requesting password reset: ${url}`);
+    console.log(`[API] Email to send OTP: ${payload.email}`);
   }
 
   try {
@@ -349,16 +350,16 @@ export async function requestPasswordReset(payload: {
   }
 }
 
-// Call backend: reset password using email + new password
-export async function resetPassword(payload: {
+// Call backend: verify OTP
+export async function verifyOTP(payload: {
   email: string;
-  newPassword: string;
-}): Promise<string> {
-  const path = '/auth/reset-password';
+  otp: string;
+}): Promise<{ verificationToken: string }> {
+  const path = '/auth/verify-otp';
   const url = `${API_BASE_URL}${path}`;
 
   if (__DEV__) {
-    console.log(`[API] Resetting password: ${url}`);
+    console.log(`[API] Verifying OTP: ${url}`);
   }
 
   try {
@@ -370,6 +371,71 @@ export async function resetPassword(payload: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
+      },
+      15000
+    );
+
+    const json = await parseJsonSafe(response);
+
+    if (!json) {
+      const statusMessage = response.ok ? 'Empty response from server' : `Server error (${response.status})`;
+      throw new Error(statusMessage);
+    }
+
+    if (!response.ok || !json.success) {
+      const message = json.message || 'Failed to verify OTP';
+      throw new Error(message);
+    }
+
+    if (!json.data || !json.data.verificationToken) {
+      throw new Error('Verification token not received from server');
+    }
+
+    return {
+      verificationToken: json.data.verificationToken,
+    };
+  } catch (error: any) {
+    if (__DEV__) {
+      console.error('[API] Verify OTP error:', error);
+    }
+
+    if (error.message.includes('timed out')) {
+      const errorMsg = `Connection timeout!\n\nTrying to connect to: ${API_BASE_URL}${path}\n\nTroubleshooting:\n1. Make sure backend is running: cd ayuuto-backend && npm start\n2. Find your IP: ifconfig | grep "inet " | grep -v 127.0.0.1\n3. Update IP in utils/auth.ts line 19 (current: ${PHYSICAL_DEVICE_IP})\n4. Ensure phone and computer are on the SAME Wi-Fi network\n5. Check firewall allows port ${BACKEND_PORT}`;
+      throw new Error(errorMsg);
+    }
+    if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
+      throw new Error(buildNetworkErrorMessage(path));
+    }
+    throw error;
+  }
+}
+
+// Call backend: reset password using verification token (after OTP verification)
+export async function resetPasswordWithVerificationToken(payload: {
+  email: string;
+  verificationToken: string;
+  newPassword: string;
+}): Promise<string> {
+  const path = '/auth/reset-password';
+  const url = `${API_BASE_URL}${path}`;
+
+  if (__DEV__) {
+    console.log(`[API] Resetting password with verification token: ${url}`);
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: payload.email,
+          verificationToken: payload.verificationToken,
+          newPassword: payload.newPassword,
+        }),
       },
       15000
     );
@@ -401,6 +467,19 @@ export async function resetPassword(payload: {
     }
     throw error;
   }
+}
+
+// Legacy function for backward compatibility (deprecated)
+export async function resetPasswordWithToken(payload: {
+  email: string;
+  token: string;
+  newPassword: string;
+}): Promise<string> {
+  return resetPasswordWithVerificationToken({
+    email: payload.email,
+    verificationToken: payload.token,
+    newPassword: payload.newPassword,
+  });
 }
 
 

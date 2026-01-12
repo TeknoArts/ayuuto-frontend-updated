@@ -4,7 +4,7 @@ import { getAuthToken } from './auth';
 // Backend API Configuration
 // Set to true if testing on a physical device, false for simulator/emulator
 const IS_PHYSICAL_DEVICE = true;
-const PHYSICAL_DEVICE_IP = '192.168.18.116'; // Update this to your computer's IP address
+const PHYSICAL_DEVICE_IP = '10.213.115.128'; // Update this to your computer's IP address
 const BACKEND_PORT = 5001;
 
 const getApiBaseUrl = () => {
@@ -297,6 +297,17 @@ export async function updatePaymentStatus(
 export async function getUserGroups(): Promise<Group[]> {
   try {
     const headers = await getAuthHeaders();
+    const token = await getAuthToken();
+    
+    if (__DEV__) {
+      console.log('[API] Getting user groups');
+      console.log('[API] Token present:', token ? 'Yes' : 'No');
+      if (token) {
+        console.log('[API] Token length:', token.length);
+        console.log('[API] Token preview:', token.substring(0, 20) + '...');
+      }
+    }
+    
     const response = await fetchWithTimeout(
       `${API_BASE_URL}/groups`,
       {
@@ -309,6 +320,23 @@ export async function getUserGroups(): Promise<Group[]> {
     const json: ApiResponse<{ groups: Group[] }> = await response.json();
 
     if (!response.ok || !json.success || !json.data) {
+      // If unauthorized, clear token and provide helpful error message
+      if (response.status === 401) {
+        const errorMsg = json.message || 'Not authorized';
+        console.error('[API] Authentication error:', errorMsg);
+        console.error('[API] Token may be expired or invalid. Clearing stored token...');
+        
+        // Clear invalid token
+        try {
+          const { clearAuth } = await import('./auth');
+          await clearAuth();
+          console.log('[API] Cleared invalid auth token');
+        } catch (clearError) {
+          console.error('[API] Error clearing auth:', clearError);
+        }
+        
+        throw new Error(`${errorMsg}. Please log in again.`);
+      }
       throw new Error(json.message || 'Failed to get groups');
     }
 
