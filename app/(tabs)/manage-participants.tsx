@@ -9,6 +9,9 @@ import {
   TextInput,
   Modal,
   TouchableWithoutFeedback,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -23,8 +26,10 @@ import {
   type UserSummary,
 } from '@/utils/api';
 import { getUserData } from '@/utils/auth';
+import { alert } from '@/utils/alert';
 
 export default function ManageParticipantsScreen() {
+  const { t } = useI18n();
   const params = useLocalSearchParams();
   const groupId = params.groupId as string;
   const groupName = (params.groupName as string) || '';
@@ -49,7 +54,7 @@ export default function ManageParticipantsScreen() {
       }
     } catch (error) {
       console.error('Error loading group for manage-participants:', error);
-      Alert.alert('Error', 'Failed to load group participants. Please try again.');
+      alert(t('error'), t('failedToLoadGroupDetails'));
     } finally {
       setIsLoading(false);
     }
@@ -68,10 +73,10 @@ export default function ManageParticipantsScreen() {
         // Flatten unique users from createdBy and participants
         const map = new Map<string, UserSummary>();
         users.forEach((g) => {
-          if (g.createdBy) {
+          if (g.createdBy && typeof g.createdBy === 'object' && g.createdBy.id && g.createdBy.id !== null) {
             map.set(g.createdBy.id, {
               id: g.createdBy.id,
-              name: g.createdBy.name,
+              name: g.createdBy.name || 'Deleted User',
               email: '',
             });
           }
@@ -89,8 +94,15 @@ export default function ManageParticipantsScreen() {
           });
         });
         setAvailableUsers(Array.from(map.values()));
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error loading users for manage-participants:', error);
+        // Only show error if modal is open (user is actively trying to add participant)
+        if (isUserModalOpen) {
+          alert(
+            t('error'),
+            error?.message || t('failedToLoadUsers')
+          );
+        }
       }
     };
     loadUsers();
@@ -102,7 +114,7 @@ export default function ManageParticipantsScreen() {
   const handleAddParticipant = async (user: UserSummary) => {
     if (!groupId || !group) return;
     if (group.participants && group.participants.length >= (group.memberCount || 0)) {
-      Alert.alert('Limit reached', 'All participant slots are already filled.');
+      alert(t('limitReached'), t('allSlotsFilledMessage'));
       return;
     }
     try {
@@ -113,7 +125,7 @@ export default function ManageParticipantsScreen() {
       setIsUserModalOpen(false);
     } catch (error: any) {
       console.error('Error adding participant:', error);
-      Alert.alert('Error', error?.message || 'Failed to add participant.');
+      alert(t('error'), error?.message || t('failedToAdd'));
     } finally {
       setIsSaving(false);
     }
@@ -158,18 +170,18 @@ export default function ManageParticipantsScreen() {
               })
             }>
             <IconSymbol name="chevron.left" size={20} color="#61a5fb" />
-            <Text style={styles.backText}>BACK</Text>
+            <Text style={styles.backText}>{t('back')}</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.title}>MANAGE PARTICIPANTS</Text>
+        <Text style={styles.title}>{t('manageParticipants')}</Text>
         <Text style={styles.subtitle}>{groupName.toUpperCase()}</Text>
 
         {/* Current participants */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>CURRENT PARTICIPANTS</Text>
           {participants.length === 0 ? (
-            <Text style={styles.emptyText}>No participants added yet.</Text>
+            <Text style={styles.emptyText}>{t('noParticipantsYet')}</Text>
           ) : (
             <View style={styles.participantsList}>
               {participants.map((p) => {
@@ -194,8 +206,8 @@ export default function ManageParticipantsScreen() {
                         style={styles.removeButton}
                         onPress={async () => {
                           if (!groupId || !p.id) return;
-                          Alert.alert(
-                            'Remove participant',
+                          alert(
+                            'Remove Participant',
                             `Are you sure you want to remove ${displayName || 'this participant'}?`,
                             [
                               { text: 'Cancel', style: 'cancel' },
@@ -209,9 +221,9 @@ export default function ManageParticipantsScreen() {
                                     await loadGroup();
                                   } catch (e: any) {
                                     console.error('Error removing participant:', e);
-                                    Alert.alert(
-                                      'Error',
-                                      e?.message || 'Failed to remove participant.'
+                                    alert(
+                                      t('error'),
+                                      e?.message || t('failedToRemove')
                                     );
                                   } finally {
                                     setIsSaving(false);
@@ -235,7 +247,7 @@ export default function ManageParticipantsScreen() {
         {canEdit && !group.isOrderSet && remainingSlots > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              ADD PARTICIPANT ({remainingSlots} slot{remainingSlots !== 1 ? 's' : ''} left)
+              {t('addParticipantSlots')} ({remainingSlots} {remainingSlots !== 1 ? t('slotsLeftPlural') : t('slotsLeft')} {t('left')})
             </Text>
             <TouchableOpacity
               style={styles.addButton}
@@ -244,7 +256,7 @@ export default function ManageParticipantsScreen() {
               disabled={remainingSlots <= 0 || isSaving}>
               <IconSymbol name="person.badge.plus" size={18} color="#001a3c" />
               <Text style={styles.addButtonText}>
-                {remainingSlots > 0 ? 'Add Participant' : 'All slots filled'}
+                {remainingSlots > 0 ? t('addParticipant') : t('allSlotsFilled')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -267,14 +279,19 @@ export default function ManageParticipantsScreen() {
           setIsUserModalOpen(false);
           setUserSearchQuery('');
         }}>
-        <TouchableWithoutFeedback
-          onPress={() => {
-            setIsUserModalOpen(false);
-            setUserSearchQuery('');
-          }}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.modalContent}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
+          <TouchableWithoutFeedback
+            onPress={() => {
+              Keyboard.dismiss();
+              setIsUserModalOpen(false);
+              setUserSearchQuery('');
+            }}>
+            <View style={styles.modalOverlayInner}>
+              <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+                <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Select participant</Text>
                   <TouchableOpacity
@@ -329,10 +346,11 @@ export default function ManageParticipantsScreen() {
                     </ScrollView>
                   );
                 })()}
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -511,6 +529,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   modalOverlay: {
+    flex: 1,
+  },
+  modalOverlayInner: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',

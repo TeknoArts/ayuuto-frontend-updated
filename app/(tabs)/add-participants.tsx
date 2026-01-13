@@ -10,12 +10,14 @@ import {
   ScrollView,
   Modal,
   TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getUsers, type UserSummary } from '@/utils/api';
+import { alert } from '@/utils/alert';
 
 type ParticipantInput = {
   label: string;
@@ -59,8 +61,15 @@ export default function AddParticipantsScreen() {
         if (isMounted) {
           setAvailableUsers(users);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error loading users for participant dropdown:', error);
+        // Only show error if modal is open (user is actively trying to select)
+        if (openSlotIndex !== null) {
+          alert(
+            'Error',
+            error?.message || 'Failed to load users. Please try again.'
+          );
+        }
       } finally {
         if (isMounted) {
           setIsLoadingUsers(false);
@@ -216,14 +225,19 @@ export default function AddParticipantsScreen() {
           setOpenSlotIndex(null);
           setUserSearchQuery('');
         }}>
-        <TouchableWithoutFeedback
-          onPress={() => {
-            setOpenSlotIndex(null);
-            setUserSearchQuery('');
-          }}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.modalContent}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
+          <TouchableWithoutFeedback
+            onPress={() => {
+              Keyboard.dismiss();
+              setOpenSlotIndex(null);
+              setUserSearchQuery('');
+            }}>
+            <View style={styles.modalOverlayInner}>
+              <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+                <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Select participant</Text>
                   <TouchableOpacity
@@ -284,10 +298,11 @@ export default function AddParticipantsScreen() {
                     </ScrollView>
                   );
                 })()}
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -501,6 +516,9 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   modalOverlay: {
+    flex: 1,
+  },
+  modalOverlayInner: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',

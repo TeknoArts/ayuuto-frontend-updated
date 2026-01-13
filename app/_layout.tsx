@@ -3,6 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import { LogBox } from 'react-native';
 import 'react-native-reanimated';
 import * as Notifications from 'expo-notifications';
 
@@ -11,9 +12,28 @@ import { AppSplashScreen } from '@/components/splash-screen';
 import { isAuthenticated as checkAuth } from '@/utils/auth';
 import { I18nProvider } from '@/utils/i18n';
 import { setupNotificationListeners, initializePushNotifications } from '@/utils/notifications';
+import { AlertProvider } from '@/components/ui/alert-provider';
 
 // Prevent the native splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
+
+// Ignore API error logs from showing in the error overlay
+// These errors are already handled and shown to users via Alert popups
+LogBox.ignoreLogs([
+  '[API] Login error:',
+  '[API] Register error:',
+  '[API] Forgot password error:',
+  '[API] Verify OTP error:',
+  '[API] Reset password error:',
+  '[API] Authentication error:',
+  'Error loading groups:',
+  'Error loading group details:',
+  'Error adding participant:',
+  'Error removing participant:',
+  'Error creating group',
+  'Error updating payment status:',
+  'Error spinning for order:',
+]);
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -83,22 +103,24 @@ export default function RootLayout() {
 
   return (
     <I18nProvider>
-      {isSplashVisible ? (
-        <AppSplashScreen onFinish={handleSplashFinish} />
-      ) : (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="signup" options={{ headerShown: false }} />
-        <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-        <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
-        <Stack.Screen name="reset-password" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="light" />
-    </ThemeProvider>
-      )}
+      <AlertProvider>
+        {isSplashVisible ? (
+          <AppSplashScreen onFinish={handleSplashFinish} />
+        ) : (
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <Stack>
+              <Stack.Screen name="login" options={{ headerShown: false }} />
+              <Stack.Screen name="signup" options={{ headerShown: false }} />
+              <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+              <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
+              <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+            </Stack>
+            <StatusBar style="light" />
+          </ThemeProvider>
+        )}
+      </AlertProvider>
     </I18nProvider>
   );
 }

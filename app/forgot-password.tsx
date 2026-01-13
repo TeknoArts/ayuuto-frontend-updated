@@ -14,29 +14,36 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { requestPasswordReset } from '@/utils/auth';
+import { alert } from '@/utils/alert';
+import { useI18n } from '@/utils/i18n';
 
 export default function ForgotPasswordScreen() {
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const handleSendOTP = async () => {
     if (!email) {
-      setError('Please enter your email address.');
+      alert(
+        'Email Required',
+        'Please enter your email address.'
+      );
       return;
     }
 
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address.');
+      alert(
+        t('invalidEmail'),
+        t('pleaseEnterValidEmail')
+      );
       return;
     }
 
     try {
       setIsLoading(true);
-      setError(null);
       setSuccess(false);
 
       console.log(`[FORGOT PASSWORD] Sending OTP request for email: ${email}`);
@@ -55,7 +62,10 @@ export default function ForgotPasswordScreen() {
       }, 1500);
     } catch (err: any) {
       console.error(`[FORGOT PASSWORD] Error:`, err);
-      setError(err?.message || 'Unable to send OTP. Please try again.');
+      alert(
+        'Error',
+        err?.message || t('unableToSendOTP')
+      );
     } finally {
       setIsLoading(false);
     }
@@ -74,24 +84,22 @@ export default function ForgotPasswordScreen() {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <Text style={styles.logoText}>AYUUTO</Text>
-            <Text style={styles.tagline}>ORGANIZE WITH TRUST, CELEBRATE TOGETHER.</Text>
+            <Text style={styles.tagline}>{t('organizeWithTrust')}</Text>
           </View>
 
           {/* Header */}
           <View style={styles.headerContainer}>
-            <Text style={styles.title}>Forgot Password?</Text>
+            <Text style={styles.title}>{t('forgotPassword')}</Text>
             <Text style={styles.subtitle}>
-              Enter your email address and we'll send you a 5-digit OTP code.
+              {t('enterEmailForOTP')}
             </Text>
           </View>
 
-          {error && <Text style={styles.errorText}>{error}</Text>}
-          
           {success && (
             <View style={styles.successContainer}>
               <IconSymbol name="checkmark.circle.fill" size={24} color="#4CAF50" />
               <View style={styles.successTextContainer}>
-                <Text style={styles.successTitle}>OTP sent!</Text>
+                <Text style={styles.successTitle}>{t('otpSent')}</Text>
                 <Text style={styles.successText}>
                   Check your email ({email}) for the 5-digit OTP code.
                 </Text>
@@ -112,7 +120,6 @@ export default function ForgotPasswordScreen() {
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
-                if (error) setError(null);
                 if (success) setSuccess(false);
               }}
               keyboardType="email-address"
@@ -210,12 +217,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9BA1A6',
     lineHeight: 20,
-  },
-  errorText: {
-    color: '#FF6B6B',
-    fontSize: 14,
-    marginBottom: 16,
-    textAlign: 'center',
   },
   successContainer: {
     flexDirection: 'row',

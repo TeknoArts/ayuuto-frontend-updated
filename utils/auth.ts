@@ -16,7 +16,7 @@ const IS_PHYSICAL_DEVICE = true; // Change this based on your setup
 
 // Your machine's LAN IP address (for physical devices)
 // Find your IP by running: ifconfig | grep "inet " | grep -v 127.0.0.1
-const PHYSICAL_DEVICE_IP = '10.213.115.128'; // Update this with your current LAN IP
+const PHYSICAL_DEVICE_IP = '10.57.30.128'; // Update this with your current LAN IP
 
 const BACKEND_PORT = 5001;
 

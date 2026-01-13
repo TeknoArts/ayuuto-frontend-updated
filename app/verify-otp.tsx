@@ -14,13 +14,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { verifyOTP } from '@/utils/auth';
+import { alert } from '@/utils/alert';
 
 export default function VerifyOTPScreen() {
+  const { t } = useI18n();
   const params = useLocalSearchParams<{ email?: string }>();
   const [email, setEmail] = useState(params.email || '');
   const [otp, setOtp] = useState(['', '', '', '', '']);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   // Auto-focus first input on mount
@@ -39,7 +40,6 @@ export default function VerifyOTPScreen() {
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
-    setError(null);
 
     // Auto-focus next input
     if (value && index < 4) {
@@ -63,18 +63,23 @@ export default function VerifyOTPScreen() {
     const otpCode = otpValue || otp.join('');
     
     if (otpCode.length !== 5) {
-      setError('Please enter the complete 5-digit OTP code.');
+      alert(
+        t('incompleteOTP'),
+        t('pleaseEnterCompleteOTP')
+      );
       return;
     }
 
     if (!email) {
-      setError('Email is required.');
+      alert(
+        t('emailRequired'),
+        t('pleaseEnterEmail')
+      );
       return;
     }
 
     try {
       setIsVerifying(true);
-      setError(null);
 
       const result = await verifyOTP({ email, otp: otpCode });
       
@@ -87,7 +92,10 @@ export default function VerifyOTPScreen() {
         },
       });
     } catch (err: any) {
-      setError(err?.message || 'Invalid OTP. Please check and try again.');
+      alert(
+        t('verificationFailed'),
+        err?.message || t('invalidOTP')
+      );
       // Clear OTP on error
       setOtp(['', '', '', '', '']);
       inputRefs.current[0]?.focus();
@@ -109,7 +117,7 @@ export default function VerifyOTPScreen() {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <Text style={styles.logoText}>AYUUTO</Text>
-            <Text style={styles.tagline}>ORGANIZE WITH TRUST, CELEBRATE TOGETHER.</Text>
+            <Text style={styles.tagline}>{t('organizeWithTrust')}</Text>
           </View>
 
           {/* Header */}
@@ -120,8 +128,6 @@ export default function VerifyOTPScreen() {
             </Text>
           </View>
 
-          {error && <Text style={styles.errorText}>{error}</Text>}
-
           {/* OTP Input Fields */}
           <View style={styles.otpContainer}>
             {otp.map((digit, index) => (
@@ -131,7 +137,6 @@ export default function VerifyOTPScreen() {
                 style={[
                   styles.otpInput,
                   digit !== '' && styles.otpInputFilled,
-                  error && styles.otpInputError,
                 ]}
                 value={digit}
                 onChangeText={(value) => handleOtpChange(index, value)}
@@ -153,7 +158,7 @@ export default function VerifyOTPScreen() {
             {isVerifying ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.primaryButtonText}>VERIFY OTP</Text>
+              <Text style={styles.primaryButtonText}>{t('verifyOTP')}</Text>
             )}
           </TouchableOpacity>
 
@@ -230,12 +235,6 @@ const styles = StyleSheet.create({
     color: '#9BA1A6',
     lineHeight: 20,
   },
-  errorText: {
-    color: '#FF6B6B',
-    fontSize: 14,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -257,9 +256,6 @@ const styles = StyleSheet.create({
   otpInputFilled: {
     borderColor: '#4CAF50',
     backgroundColor: 'rgba(76, 175, 80, 0.1)',
-  },
-  otpInputError: {
-    borderColor: '#FF6B6B',
   },
   primaryButton: {
     backgroundColor: '#4CAF50',

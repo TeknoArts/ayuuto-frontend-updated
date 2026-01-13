@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, Switch } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { clearAuth, getUserData, UserData } from '@/utils/auth';
 import { useI18n } from '@/utils/i18n';
+import { alert } from '@/utils/alert';
 
 export default function SettingsScreen() {
   const [user, setUser] = useState<UserData | null>(null);
@@ -28,7 +29,7 @@ export default function SettingsScreen() {
       // The I18nProvider will update all components using useI18n
     } catch (error) {
       console.error('Error saving language preference:', error);
-      Alert.alert(t('error'), 'Failed to change language. Please try again.');
+      alert(t('error'), 'Failed to change language. Please try again.');
     }
   };
 
@@ -43,7 +44,7 @@ export default function SettingsScreen() {
       .slice(0, 1);
 
   const handleLogout = () => {
-    Alert.alert(
+    alert(
       t('logout'),
       t('logoutConfirm'),
       [
@@ -64,7 +65,7 @@ export default function SettingsScreen() {
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
+    alert(
       t('deleteAccount'),
       t('deleteAccountConfirm'),
       [

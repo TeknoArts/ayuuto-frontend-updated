@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, FlatList } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -7,9 +7,10 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getUserData, UserData } from '@/utils/auth';
 import { getUserGroups, deleteGroup, type Group } from '@/utils/api';
 import { useI18n } from '@/utils/i18n';
+import { alert } from '@/utils/alert';
 
 export default function HomeScreen() {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const params = useLocalSearchParams();
   const [user, setUser] = useState<UserData | null>(null);
   const [managedGroups, setManagedGroups] = useState<Group[]>([]);
@@ -51,6 +52,14 @@ export default function HomeScreen() {
       }
       console.log('HomeScreen: Loading groups for user:', currentUser.id);
       const userGroups = await getUserGroups();
+      console.log('HomeScreen: Total groups received from API:', userGroups.length);
+      if (userGroups.length > 0) {
+        console.log('HomeScreen: First group sample:', {
+          name: userGroups[0].name,
+          createdBy: userGroups[0].createdBy,
+          participants: userGroups[0].participants?.length || 0,
+        });
+      }
 
       // Groups created by the user (AYUUTO MANAGER)
       const managerGroups = userGroups.filter((g) => {
@@ -59,21 +68,25 @@ export default function HomeScreen() {
           return false;
         }
         
+        // Handle null createdBy (deleted user)
+        if (typeof g.createdBy === 'object' && (!g.createdBy.id || g.createdBy.id === null)) {
+          console.warn('Group has deleted creator:', g.name);
+          return false;
+        }
+        
         // Check if createdBy matches user ID (handle both object and string formats)
         const createdById = typeof g.createdBy === 'object' ? g.createdBy?.id : g.createdBy;
         const userId = currentUser.id;
         
-        if (!userId) {
-          console.warn('User ID is missing');
+        if (!userId || !createdById) {
+          console.warn('User ID or CreatedBy ID is missing');
           return false;
         }
         
         // Compare as strings to handle ObjectId vs string mismatches
-        const createdByIdStr = createdById?.toString();
+        const createdByIdStr = createdById.toString();
         const userIdStr = userId.toString();
-        const matches = createdByIdStr === userIdStr || 
-               createdById === userId ||
-               (g.createdBy && typeof g.createdBy === 'object' && g.createdBy.id?.toString() === userIdStr);
+        const matches = createdByIdStr === userIdStr || createdById === userId;
         
         // Debug logging for troubleshooting
         if (__DEV__) {
@@ -92,10 +105,81 @@ export default function HomeScreen() {
 
       // Groups where user is a participant but NOT the creator (MY AYUUTOS)
       const participantGroups = userGroups.filter((g) => {
-        if (!g.createdBy) return false;
-        const createdById = typeof g.createdBy === 'object' ? g.createdBy?.id : g.createdBy;
         const userId = currentUser!.id;
-        const isOwner = createdById?.toString() === userId?.toString();
+        if (!userId) {
+          console.log('HomeScreen: No userId found for participant check');
+          return false;
+        }
+        
+        // Check if user is a participant in this group
+        // Participants can have userId directly or user.id nested
+        const isParticipant = g.participants?.some((p) => {
+          if (typeof p !== 'object') {
+            console.log('HomeScreen: Participant is not an object:', p);
+            return false;
+          }
+          
+          // Check userId field
+          if (p.userId && p.userId.toString() === userId.toString()) {
+            console.log('HomeScreen: Found participant match via userId:', p.userId, '===', userId);
+            return true;
+          }
+          
+          // Check user.id field (nested user object)
+          if (p.user && typeof p.user === 'object' && p.user.id) {
+            if (p.user.id.toString() === userId.toString()) {
+              console.log('HomeScreen: Found participant match via user.id:', p.user.id, '===', userId);
+              return true;
+            }
+          }
+          
+          // Check id field as fallback (only if it's a user ID, not participant ID)
+          // Note: This might match participant IDs, so we should be careful
+          // Actually, let's skip this check as participant.id is the participant record ID, not user ID
+          
+          return false;
+        });
+        
+        if (!isParticipant) {
+          // Debug: Log why this group is not included
+          console.log('HomeScreen: Group not included in My Ayuuto - not a participant:', {
+            groupName: g.name,
+            groupId: g.id,
+            participantCount: g.participants?.length || 0,
+            participants: g.participants?.map(p => ({
+              userId: p.userId,
+              user: p.user,
+              id: p.id,
+            })),
+            currentUserId: userId,
+          });
+          return false;
+        }
+        
+        // If no createdBy, include if user is a participant
+        if (!g.createdBy) {
+          console.log('HomeScreen: Group included (no createdBy):', g.name);
+          return true;
+        }
+        
+        // Handle null createdBy (deleted user) - include if user is a participant
+        if (typeof g.createdBy === 'object' && (!g.createdBy.id || g.createdBy.id === null)) {
+          console.log('HomeScreen: Group included (null createdBy.id):', g.name);
+          return true;
+        }
+        
+        // Check if user is NOT the creator
+        const createdById = typeof g.createdBy === 'object' ? g.createdBy?.id : g.createdBy;
+        if (!createdById) {
+          console.log('HomeScreen: Group included (no createdById):', g.name);
+          return true; // If no creator ID, include if user is participant
+        }
+        const isOwner = createdById.toString() === userId.toString();
+        if (isOwner) {
+          console.log('HomeScreen: Group excluded (user is owner):', g.name);
+        } else {
+          console.log('HomeScreen: Group included in My Ayuuto:', g.name);
+        }
         return !isOwner;
       });
 
@@ -121,6 +205,19 @@ export default function HomeScreen() {
         'User ID:',
         currentUser.id
       );
+      
+      // Debug: Log why groups might be filtered out
+      if (userGroups.length > 0 && managerGroups.length === 0 && participantGroups.length === 0) {
+        console.warn('HomeScreen: WARNING - Groups received but none match filters!');
+        userGroups.slice(0, 3).forEach((g, idx) => {
+          console.warn(`Group ${idx + 1}:`, {
+            name: g.name,
+            createdBy: g.createdBy,
+            hasParticipants: !!g.participants && g.participants.length > 0,
+            participantCount: g.participants?.length || 0,
+          });
+        });
+      }
 
       // Debug: Log first group's createdBy structure if we have groups but none match
       if (managerGroups.length === 0 && userGroups.length > 0) {
@@ -153,6 +250,24 @@ export default function HomeScreen() {
         await clearAuth();
         router.replace('/login');
         return;
+      }
+      
+      // Show error to user for other errors
+      if (isInitialLoad || showLoading) {
+        alert(
+          'Error',
+          error?.message || 'Failed to load groups. Please try again.',
+          [
+            {
+              text: 'Retry',
+              onPress: () => loadGroups(true),
+            },
+            {
+              text: 'OK',
+              style: 'cancel',
+            },
+          ]
+        );
       }
       
       setManagedGroups([]);
@@ -206,7 +321,7 @@ export default function HomeScreen() {
   );
 
   const handleDeleteGroup = (groupId: string, groupName: string) => {
-    Alert.alert(
+    alert(
       t('delete'),
       `Are you sure you want to delete "${groupName}"? This action cannot be undone.`,
       [
@@ -219,14 +334,16 @@ export default function HomeScreen() {
           style: 'destructive',
           onPress: async () => {
             // Store the group being deleted for optimistic update
-            const groupToDelete = managedGroups.find((g) => g.id === groupId);
+            const groupToDeleteManaged = managedGroups.find((g) => g.id === groupId);
+            const groupToDeleteJoined = joinedGroups.find((g) => g.id === groupId);
             
             try {
               // Set deleting state to show loading indicator
               setDeletingGroupId(groupId);
               
-              // Optimistically remove the group from the managed list for immediate feedback
+              // Optimistically remove the group from both lists for immediate feedback
               setManagedGroups((prev) => prev.filter((g) => g.id !== groupId));
+              setJoinedGroups((prev) => prev.filter((g) => g.id !== groupId));
               
               // Delete the group from the backend
               await deleteGroup(groupId);
@@ -239,12 +356,15 @@ export default function HomeScreen() {
               }, 300);
             } catch (error: any) {
               // If deletion fails, restore the group in the UI
-              if (groupToDelete) {
-                setManagedGroups((prev) => [...prev, groupToDelete]);
+              if (groupToDeleteManaged) {
+                setManagedGroups((prev) => [...prev, groupToDeleteManaged]);
+              }
+              if (groupToDeleteJoined) {
+                setJoinedGroups((prev) => [...prev, groupToDeleteJoined]);
               }
               
               setDeletingGroupId(null);
-              Alert.alert(
+              alert(
                 t('error'),
                 error.message || 'Failed to delete group. Please try again.'
               );
@@ -258,7 +378,7 @@ export default function HomeScreen() {
   const handleGroupPress = (groupId: string) => {
     if (!groupId) {
       console.error('HomeScreen: Cannot navigate - groupId is missing');
-      Alert.alert('Error', 'Group ID is missing. Please try again.');
+      alert('Error', 'Group ID is missing. Please try again.');
       return;
     }
     
@@ -271,7 +391,7 @@ export default function HomeScreen() {
     
     if (!groupIdString || groupIdString === 'undefined' || groupIdString === 'null') {
       console.error('HomeScreen: Invalid groupId:', groupIdString);
-      Alert.alert('Error', 'Invalid group ID. Please try again.');
+      alert('Error', 'Invalid group ID. Please try again.');
       return;
     }
     
@@ -285,7 +405,7 @@ export default function HomeScreen() {
       console.log('HomeScreen: Navigation command executed');
     } catch (error) {
       console.error('HomeScreen: Navigation error:', error);
-      Alert.alert('Error', 'Failed to navigate to group details. Please try again.');
+      alert('Error', 'Failed to navigate to group details. Please try again.');
     }
   };
 
@@ -297,14 +417,12 @@ export default function HomeScreen() {
         {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.welcomeText}>Welcome to Ayuuto, {displayName}!</Text>
-            <Text style={styles.sloganText}>ORGANIZE WITH TRUST, CELEBRATE TOGETHER.</Text>
+            <Text style={styles.welcomeText}>{t('welcomeToAyuuto')}, {displayName}!</Text>
+            <Text style={styles.sloganText}>{t('organizeWithTrust')}</Text>
           </View>
-          <TouchableOpacity 
-            style={styles.flagButton}
-            onPress={() => router.push('/(tabs)/activity-log')}>
-            <IconSymbol name="clock.fill" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
+          <View style={styles.flagButton}>
+            <Text style={styles.flagEmoji}>{language === 'so' ? '🇸🇴' : '🇬🇧'}</Text>
+          </View>
         </View>
 
         {/* New Group Button */}
@@ -320,11 +438,11 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitleYellow}>{t('ayuutoManager')}</Text>
           {isLoading ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>Loading...</Text>
+              <Text style={styles.emptyStateText}>{t('loading')}</Text>
             </View>
           ) : managedGroups.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>YOU DON'T MANAGE ANY GROUPS YET.</Text>
+              <Text style={styles.emptyStateText}>{t('dontManageGroups')}</Text>
             </View>
           ) : (
             <FlatList
@@ -393,7 +511,7 @@ export default function HomeScreen() {
 
         {/* My Ayuutos Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitleBlue}>MY AYUUTOS</Text>
+          <Text style={styles.sectionTitleBlue}>{t('myAyuutos')}</Text>
           {isLoading ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>Loading...</Text>
@@ -433,6 +551,27 @@ export default function HomeScreen() {
                         </Text>
                       </View>
                     </View>
+                    <TouchableOpacity
+                      style={[
+                        styles.deleteButton,
+                        deletingGroupId === group.id && styles.deleteButtonDisabled
+                      ]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        if (deletingGroupId !== group.id) {
+                          handleDeleteGroup(group.id, group.name);
+                        }
+                      }}
+                      activeOpacity={0.7}
+                      disabled={deletingGroupId === group.id}>
+                      {deletingGroupId === group.id ? (
+                        <View style={styles.deleteLoading}>
+                          <Text style={styles.deleteLoadingText}>...</Text>
+                        </View>
+                      ) : (
+                        <IconSymbol name="trash.fill" size={18} color="#FF6B6B" />
+                      )}
+                    </TouchableOpacity>
                   </TouchableOpacity>
                 </View>
               )}
@@ -489,6 +628,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#2a3441',
+  },
+  flagEmoji: {
+    fontSize: 24,
   },
   newGroupButton: {
     backgroundColor: '#4CAF50',

@@ -14,8 +14,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { resetPasswordWithVerificationToken } from '@/utils/auth';
+import { alert } from '@/utils/alert';
+import { useI18n } from '@/utils/i18n';
 
 export default function ResetPasswordScreen() {
+  const { t } = useI18n();
   const params = useLocalSearchParams<{ email?: string; verificationToken?: string }>();
   
   const [email, setEmail] = useState(params.email || '');
@@ -25,38 +28,51 @@ export default function ResetPasswordScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const handleResetPassword = async () => {
     if (!email) {
-      setError('Email is required.');
+      alert(
+        t('emailRequired'),
+        t('pleaseEnterEmail')
+      );
       return;
     }
 
     if (!verificationToken) {
-      setError('Verification token is missing. Please verify OTP again.');
+      alert(
+        t('verificationTokenMissing'),
+        t('verificationTokenMissingMessage')
+      );
       return;
     }
 
     if (!newPassword || !confirmPassword) {
-      setError('Please enter and confirm your new password.');
+      alert(
+        t('passwordRequired'),
+        t('pleaseEnterPassword')
+      );
       return;
     }
 
     if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters long.');
+      alert(
+        t('passwordTooShort'),
+        t('passwordMinLength')
+      );
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match.');
+      alert(
+        t('passwordMismatch'),
+        t('passwordsDoNotMatch')
+      );
       return;
     }
 
     try {
       setIsResetting(true);
-      setError(null);
       setSuccess(false);
 
       const message = await resetPasswordWithVerificationToken({
@@ -72,7 +88,10 @@ export default function ResetPasswordScreen() {
         router.replace('/login');
       }, 2000);
     } catch (err: any) {
-      setError(err?.message || 'Unable to reset password. Please try again.');
+      alert(
+        t('resetFailed'),
+        err?.message || t('unableToResetPassword')
+      );
     } finally {
       setIsResetting(false);
     }
@@ -84,15 +103,15 @@ export default function ResetPasswordScreen() {
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.errorContainer}>
           <IconSymbol name="exclamationmark.triangle.fill" size={48} color="#FF6B6B" />
-          <Text style={styles.errorTitle}>Invalid Session</Text>
+          <Text style={styles.errorTitle}>{t('invalidSession')}</Text>
           <Text style={styles.errorText}>
-            Please verify your OTP first before resetting your password.
+            {t('pleaseVerifyOTPFirst')}
           </Text>
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={() => router.replace('/forgot-password')}
           >
-            <Text style={styles.primaryButtonText}>GO BACK</Text>
+            <Text style={styles.primaryButtonText}>{t('goBack')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -112,24 +131,22 @@ export default function ResetPasswordScreen() {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <Text style={styles.logoText}>AYUUTO</Text>
-            <Text style={styles.tagline}>ORGANIZE WITH TRUST, CELEBRATE TOGETHER.</Text>
+            <Text style={styles.tagline}>{t('organizeWithTrust')}</Text>
           </View>
 
           {/* Header */}
           <View style={styles.headerContainer}>
-            <Text style={styles.title}>Change Password</Text>
+            <Text style={styles.title}>{t('changePassword')}</Text>
             <Text style={styles.subtitle}>
-              Create a new password for your account.
+              {t('createNewPassword')}
             </Text>
           </View>
 
-          {error && <Text style={styles.errorText}>{error}</Text>}
-          
           {success && (
             <View style={styles.successContainer}>
               <IconSymbol name="checkmark.circle.fill" size={24} color="#4CAF50" />
               <Text style={styles.successText}>
-                Password changed successfully! Redirecting to login...
+                {t('passwordChangedSuccess')}
               </Text>
             </View>
           )}
@@ -139,7 +156,7 @@ export default function ResetPasswordScreen() {
             <IconSymbol name="envelope.fill" size={20} color="#9BA1A6" style={styles.inputIcon} />
             <TextInput
               style={[styles.input, styles.inputDisabled]}
-              placeholder="Email Address"
+              placeholder={t('emailOrPhone')}
               placeholderTextColor="#9BA1A6"
               value={email}
               editable={false}
@@ -151,12 +168,11 @@ export default function ResetPasswordScreen() {
             <IconSymbol name="lock.fill" size={20} color="#9BA1A6" style={styles.inputIcon} />
             <TextInput
               style={[styles.input, styles.passwordInput]}
-              placeholder="New Password"
+              placeholder={t('newPassword')}
               placeholderTextColor="#9BA1A6"
               value={newPassword}
               onChangeText={(text) => {
                 setNewPassword(text);
-                if (error) setError(null);
               }}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
@@ -180,12 +196,11 @@ export default function ResetPasswordScreen() {
             <IconSymbol name="lock.fill" size={20} color="#9BA1A6" style={styles.inputIcon} />
             <TextInput
               style={[styles.input, styles.passwordInput]}
-              placeholder="Confirm New Password"
+              placeholder={t('confirmNewPassword')}
               placeholderTextColor="#9BA1A6"
               value={confirmPassword}
               onChangeText={(text) => {
                 setConfirmPassword(text);
-                if (error) setError(null);
               }}
               secureTextEntry={!showConfirmPassword}
               autoCapitalize="none"
@@ -285,12 +300,6 @@ const styles = StyleSheet.create({
     color: '#FF6B6B',
     marginTop: 16,
     marginBottom: 8,
-  },
-  errorText: {
-    color: '#FF6B6B',
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 32,
   },
   successContainer: {
     flexDirection: 'row',

@@ -4,10 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useI18n } from '@/utils/i18n';
 
 type Frequency = 'MONTHLY' | 'WEEKLY';
 
 export default function CollectionScreen() {
+  const { t } = useI18n();
   const params = useLocalSearchParams();
   const [amount, setAmount] = useState('');
   const [collectionDate, setCollectionDate] = useState('');
@@ -150,7 +152,10 @@ export default function CollectionScreen() {
       });
     } catch (error: any) {
       console.error('Error creating group / setting collection details:', error);
-      // You can add error handling UI here
+      alert(
+        t('error'),
+        error?.message || t('failedToCreate')
+      );
     }
   };
 
@@ -170,12 +175,12 @@ export default function CollectionScreen() {
                 style={styles.backButton}
                 onPress={() => router.back()}>
                 <IconSymbol name="chevron.left" size={20} color="#61a5fb" />
-                <Text style={styles.backText}>BACK</Text>
+                <Text style={styles.backText}>{t('back')}</Text>
               </TouchableOpacity>
             </View>
 
             {/* Title */}
-            <Text style={styles.title}>NEW GROUP</Text>
+            <Text style={styles.title}>{t('newGroupTitle')}</Text>
 
             {/* Form */}
             <View style={styles.form}>
@@ -227,7 +232,7 @@ export default function CollectionScreen() {
                   ]}
                   onPress={() => handleFrequencyChange('MONTHLY')}
                   activeOpacity={0.8}>
-                  <Text style={styles.frequencyButtonText}>MONTHLY</Text>
+                  <Text style={styles.frequencyButtonText}>{t('monthly')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
@@ -236,14 +241,14 @@ export default function CollectionScreen() {
                   ]}
                   onPress={() => handleFrequencyChange('WEEKLY')}
                   activeOpacity={0.8}>
-                  <Text style={styles.frequencyButtonText}>WEEKLY</Text>
+                  <Text style={styles.frequencyButtonText}>{t('weekly')}</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Collection Date/Day Section */}
               <View style={styles.inputSection}>
                 <Text style={styles.label}>
-                  {frequency === 'WEEKLY' ? 'COLLECTION DAY (1-7)' : 'COLLECTION DATE (1-31)'}
+                  {frequency === 'WEEKLY' ? `${t('collectionDay')} (1-7)` : `${t('collectionDate')} (1-31)`}
                 </Text>
                 <View style={[
                   styles.inputContainer,
@@ -277,7 +282,7 @@ export default function CollectionScreen() {
                 onPress={handleCreate}
                 activeOpacity={0.8}
                 disabled={!isFormValid}>
-                <Text style={styles.createButtonText}>CREATE & CELEBRATE!</Text>
+                <Text style={styles.createButtonText}>{t('create')} & {t('celebrate')}!</Text>
               </TouchableOpacity>
             </View>
           </View>

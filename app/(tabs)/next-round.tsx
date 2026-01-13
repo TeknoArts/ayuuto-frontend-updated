@@ -3,8 +3,10 @@ import { StyleSheet, View, Text, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useI18n } from '@/utils/i18n';
 
 export default function NextRoundScreen() {
+  const { t } = useI18n();
   const params = useLocalSearchParams();
   const groupId = params.groupId as string;
   const nextRecipientName = params.nextRecipientName as string || '';
@@ -128,17 +130,17 @@ export default function NextRoundScreen() {
 
         {/* Header Text varies by mode */}
         <Text style={styles.nextRoundText}>
-          {isSpin ? 'SETTING ORDER' : 'NEXT ROUND'}
+          {isSpin ? t('settingOrder') : t('nextRoundStarting')}
         </Text>
         <Text style={styles.roundNumberText}>
-          {isSpin ? `PREPARING ROUND ${roundNumber}` : `ROUND ${roundNumber}`}
+          {isSpin ? `${t('preparingRound')} ${roundNumber}` : `${t('round')} ${roundNumber}`}
         </Text>
         {isSpin ? (
-          <Text style={styles.nextRecipientText}>Spinning participants…</Text>
+          <Text style={styles.nextRecipientText}>{t('spinningParticipants')}</Text>
         ) : nextRecipientName ? (
-          <Text style={styles.nextRecipientText}>Next: {nextRecipientName.toUpperCase()}</Text>
+          <Text style={styles.nextRecipientText}>{t('nextLabel')} {nextRecipientName.toUpperCase()}</Text>
         ) : (
-          <Text style={styles.startingText}>STARTING</Text>
+          <Text style={styles.startingText}>{t('starting')}</Text>
         )}
 
         {/* Progress Bar Container */}

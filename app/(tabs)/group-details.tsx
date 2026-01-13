@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, Share, Linking } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Share, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -13,8 +13,11 @@ import {
   type GroupLogEntry,
 } from '@/utils/api';
 import { getUserData, UserData } from '@/utils/auth';
+import { alert } from '@/utils/alert';
+import { useI18n } from '@/utils/i18n';
 
 export default function GroupDetailsScreen() {
+  const { t } = useI18n();
   const params = useLocalSearchParams();
   const groupId = params.groupId as string;
   const viewOnly = params.viewOnly === 'true'; // Check if viewing via shared link
@@ -69,14 +72,19 @@ export default function GroupDetailsScreen() {
         
         // Check if current user is the owner
         if (user && groupData.createdBy) {
-          const createdById =
-            typeof groupData.createdBy === 'object'
-            ? groupData.createdBy.id 
-            : groupData.createdBy;
-          const userId = user.id;
-          const userIsOwner =
-            createdById?.toString() === userId?.toString() || createdById === userId;
-          setIsOwner(userIsOwner);
+          // Handle null createdBy (deleted user)
+          if (typeof groupData.createdBy === 'object' && (!groupData.createdBy.id || groupData.createdBy.id === null)) {
+            setIsOwner(false);
+          } else {
+            const createdById =
+              typeof groupData.createdBy === 'object'
+              ? groupData.createdBy.id 
+              : groupData.createdBy;
+            const userId = user.id;
+            const userIsOwner =
+              createdById?.toString() === userId?.toString() || createdById === userId;
+            setIsOwner(userIsOwner);
+          }
         }
       }
 
@@ -86,7 +94,7 @@ export default function GroupDetailsScreen() {
     } catch (error: any) {
       console.error('Error loading group details:', error);
       // Show user-friendly error message
-      Alert.alert(
+      alert(
         'Error',
         error?.message || 'Failed to load group details. Please try again.',
         [
@@ -188,7 +196,7 @@ export default function GroupDetailsScreen() {
       }
     } catch (error: any) {
       console.error('Error spinning for order:', error);
-      Alert.alert(
+      alert(
         'Error',
         error?.message || 'Failed to spin for order. Please try again.'
       );
@@ -200,7 +208,7 @@ export default function GroupDetailsScreen() {
   const handlePaymentToggle = async (participantId: string, currentPaidStatus: boolean) => {
     // Prevent editing if user is not the owner or viewing via shared link
     if (!canEdit) {
-      Alert.alert(
+      alert(
         'View Only',
         'You can only view this group. Only the group owner can make changes.'
       );
@@ -209,7 +217,7 @@ export default function GroupDetailsScreen() {
 
     if (!group || !groupId) {
       console.warn('GroupDetailsScreen: Cannot toggle payment - group or groupId missing');
-      Alert.alert('Error', 'Group information is missing. Please try again.');
+      alert('Error', 'Group information is missing. Please try again.');
       return;
     }
 
@@ -293,7 +301,7 @@ export default function GroupDetailsScreen() {
       }
     } catch (error: any) {
       console.error('Error updating payment status:', error);
-      Alert.alert(
+      alert(
         'Error',
         error?.message || 'Failed to update payment status. Please try again.'
       );
@@ -425,7 +433,7 @@ export default function GroupDetailsScreen() {
       }
     } catch (error: any) {
       console.error('Error sharing:', error);
-      Alert.alert(
+      alert(
         'Error',
         error?.message || 'Failed to share group details. Please try again.'
       );
@@ -452,35 +460,34 @@ export default function GroupDetailsScreen() {
             <IconSymbol name="chevron.left" size={20} color="#61a5fb" />
             <Text style={styles.backText}>HOME</Text>
           </TouchableOpacity>
-          {group && (
-            <Text style={styles.groupName} numberOfLines={1}>
+        </View>
+        {group && (
+          <View style={styles.groupNameContainer}>
+            <Text style={styles.groupName} numberOfLines={2}>
               {group.name.toUpperCase()}
             </Text>
-          )}
-          <TouchableOpacity style={styles.scrollButton}>
-            <IconSymbol name="doc.text.fill" size={20} color="#D4A574" />
-          </TouchableOpacity>
-        </View>
+          </View>
+        )}
 
         {/* Read-Only Banner - Show when viewing via shared link */}
         {viewOnly && (
           <View style={styles.readOnlyBanner}>
             <IconSymbol name="eye.fill" size={16} color="#FFD700" />
-            <Text style={styles.readOnlyText}>VIEW ONLY MODE - You can view but not edit this group</Text>
+            <Text style={styles.readOnlyText}>{t('viewOnlyMode')}</Text>
           </View>
         )}
 
         {/* Savings Card */}
         <View style={styles.savingsCard}>
           <View style={styles.savingsCardHeader}>
-            <Text style={styles.savingsTitle}>SAVINGS</Text>
+            <Text style={styles.savingsTitle}>{t('savings')}</Text>
             {allParticipantsPaidOut ? (
               <View style={styles.completedBadge}>
-                <Text style={styles.completedText}>COMPLETED</Text>
+                <Text style={styles.completedText}>{t('completed')}</Text>
               </View>
             ) : (
               <View style={styles.adminBadge}>
-                <Text style={styles.adminText}>ADMIN</Text>
+                <Text style={styles.adminText}>{t('admin')}</Text>
               </View>
             )}
           </View>
@@ -491,7 +498,7 @@ export default function GroupDetailsScreen() {
               <Text style={styles.amountText}>{savingsAmount}</Text>
             </View>
             <View style={styles.nextRecipient}>
-              <Text style={styles.nextRecipientLabel}>NEXT RECIPIENT</Text>
+              <Text style={styles.nextRecipientLabel}>{t('nextRecipient')}</Text>
               <View style={styles.nextRecipientValue}>
                 {allParticipantsPaidOut ? (
                   <View style={styles.progressIndicator}>
@@ -509,7 +516,7 @@ export default function GroupDetailsScreen() {
           </View>
 
           <View style={styles.collectionDayContainer}>
-            <Text style={styles.collectionDay}>COLLECTION DAY: {collectionDay}</Text>
+            <Text style={styles.collectionDay}>{t('collectionDay')} {collectionDay}</Text>
           </View>
         </View>
 
@@ -530,7 +537,7 @@ export default function GroupDetailsScreen() {
             }}
             activeOpacity={0.8}>
             <IconSymbol name="person.2.fill" size={20} color="#001a3c" />
-            <Text style={styles.spinButtonText}>MANAGE PARTICIPANTS</Text>
+            <Text style={styles.spinButtonText}>{t('manageParticipants')}</Text>
           </TouchableOpacity>
         )}
 
@@ -542,7 +549,7 @@ export default function GroupDetailsScreen() {
             disabled={isSpinning}>
             <IconSymbol name="dice.fill" size={20} color="#001a3c" />
             <Text style={styles.spinButtonText}>
-              {isSpinning ? 'SPINNING...' : 'SPIN FOR ORDER'}
+              {isSpinning ? t('spinning') : t('spinForOrder')}
             </Text>
           </TouchableOpacity>
         )}
@@ -550,7 +557,7 @@ export default function GroupDetailsScreen() {
         {/* Payment Status Section */}
         <View style={styles.paymentSection}>
           <View style={styles.paymentHeader}>
-            <Text style={styles.paymentTitle}>PAYMENT STATUS</Text>
+            <Text style={styles.paymentTitle}>{t('paymentStatus')}</Text>
             {/* Share button - Only show to owners */}
             {isOwner && (
               <TouchableOpacity 
@@ -558,7 +565,7 @@ export default function GroupDetailsScreen() {
                 onPress={handleShare}
                 activeOpacity={0.8}>
                 <IconSymbol name="square.and.arrow.up" size={16} color="#FFFFFF" />
-                <Text style={styles.shareButtonText}>SHARE</Text>
+                <Text style={styles.shareButtonText}>{t('share')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -617,7 +624,7 @@ export default function GroupDetailsScreen() {
                       {/* Show PAID OUT tag next to name for participants who have received payment */}
                       {hasReceivedPayment && (
                         <View style={styles.paidOutTagInline}>
-                          <Text style={styles.paidOutTextInline}>PAID OUT</Text>
+                          <Text style={styles.paidOutTextInline}>{t('paidOut')}</Text>
                         </View>
                       )}
                     </View>
@@ -628,7 +635,7 @@ export default function GroupDetailsScreen() {
               <View style={styles.paymentStatusContainer}>
                 {isPaid ? (
                   <>
-                    <Text style={styles.paidStatus}>PAID</Text>
+                    <Text style={styles.paidStatus}>{t('paid')}</Text>
                     <TouchableOpacity
                       style={styles.checkboxChecked}
                       onPress={() => participant.id && handlePaymentToggle(participant.id, true)}
@@ -638,7 +645,7 @@ export default function GroupDetailsScreen() {
                   </>
                 ) : (
                   <>
-                    <Text style={styles.paymentStatus}>UNPAID</Text>
+                    <Text style={styles.paymentStatus}>{t('unpaid')}</Text>
                     <TouchableOpacity
                       style={styles.checkbox}
                       onPress={() => participant.id && handlePaymentToggle(participant.id, false)}
@@ -653,16 +660,16 @@ export default function GroupDetailsScreen() {
               (!isGroupCompleted && (!canEdit || currentRecipientPaid)) && (
               <View style={styles.paymentStatusContainer}>
                 {isPaid ? (
-                  <Text style={styles.paidStatus}>PAID</Text>
+                  <Text style={styles.paidStatus}>{t('paid')}</Text>
                 ) : (
-                  <Text style={styles.paymentStatus}>UNPAID</Text>
+                  <Text style={styles.paymentStatus}>{t('unpaid')}</Text>
                 )}
               </View>
             )}
                     {/* Show PAID OUT tag on the right when group is completed */}
                     {isGroupCompleted && hasReceivedPayment && (
                       <View style={styles.paidOutTagInline}>
-                        <Text style={styles.paidOutTextInline}>PAID OUT</Text>
+                        <Text style={styles.paidOutTextInline}>{t('paidOut')}</Text>
                       </View>
                     )}
                   </View>
@@ -673,7 +680,7 @@ export default function GroupDetailsScreen() {
               style={styles.payNowButton}
               onPress={() => participant.id && handlePaymentToggle(participant.id, false)}
               activeOpacity={0.8}>
-              <Text style={styles.payNowButtonText}>PAY NOW</Text>
+              <Text style={styles.payNowButtonText}>{t('payNow')}</Text>
               <IconSymbol name="dollarsign.circle.fill" size={16} color="#FFFFFF" />
             </TouchableOpacity>
           )}
@@ -685,18 +692,34 @@ export default function GroupDetailsScreen() {
 
         {/* Group Activity / Logs */}
         <View style={styles.logsSection}>
-          <Text style={styles.logsTitle}>GROUP ACTIVITY</Text>
+          <View style={styles.logsHeader}>
+            <Text style={styles.logsTitle}>{t('groupActivity')}</Text>
+            {logs.length > 3 && (
+              <TouchableOpacity
+                style={styles.viewMoreButton}
+                onPress={() => {
+                  router.push({
+                    pathname: '/(tabs)/group-activity-log',
+                    params: { groupId, groupName: group.name },
+                  });
+                }}
+                activeOpacity={0.8}>
+                <Text style={styles.viewMoreText}>{t('viewMore')}</Text>
+                <IconSymbol name="chevron.right" size={14} color="#FFD700" />
+              </TouchableOpacity>
+            )}
+          </View>
           {isLogsLoading ? (
             <View style={styles.logsEmptyState}>
-              <Text style={styles.logsEmptyText}>Loading activity...</Text>
+              <Text style={styles.logsEmptyText}>{t('loadingActivity')}</Text>
             </View>
           ) : logs.length === 0 ? (
             <View style={styles.logsEmptyState}>
-              <Text style={styles.logsEmptyText}>No activity yet.</Text>
+              <Text style={styles.logsEmptyText}>{t('noActivityYet')}</Text>
             </View>
           ) : (
             <View style={styles.logsList}>
-              {logs.slice(0, 5).map((log) => {
+              {logs.slice(0, 3).map((log) => {
                 const timestamp = log.paidAt || log.createdAt;
                 const dateLabel = timestamp
                   ? new Date(timestamp).toLocaleString()
@@ -737,8 +760,8 @@ export default function GroupDetailsScreen() {
         {isGroupCompleted && (
           <View style={styles.completionCard}>
             <IconSymbol name="trophy.fill" size={60} color="#FFD700" />
-            <Text style={styles.completionTitle}>AYUUTO COMPLETED</Text>
-            <Text style={styles.completionMessage}>ALL MEMBERS HAVE BEEN PAID OUT SAFELY.</Text>
+            <Text style={styles.completionTitle}>{t('ayuutoCompleted')}</Text>
+            <Text style={styles.completionMessage}>{t('allMembersPaidOut')}</Text>
           </View>
         )}
 
@@ -810,7 +833,7 @@ export default function GroupDetailsScreen() {
                     });
               } catch (error: any) {
                 console.error('Error starting next round:', error);
-                Alert.alert(
+                alert(
                   'Error',
                   error?.message || 'Failed to start next round. Please try again.'
                 );
@@ -826,7 +849,7 @@ export default function GroupDetailsScreen() {
               }
             }}
             activeOpacity={0.8}>
-            <Text style={styles.nextRoundButtonText}>NEXT ROUND</Text>
+            <Text style={styles.nextRoundButtonText}>{t('nextRound')}</Text>
             <IconSymbol name="party.popper.fill" size={20} color="#001a3c" />
           </TouchableOpacity>
         )}
@@ -869,9 +892,8 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 8,
   },
   backButton: {
     flexDirection: 'row',
@@ -885,14 +907,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
   },
+  groupNameContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
   groupName: {
-    flex: 1,
     fontSize: 18,
     fontWeight: 'bold',
     color: '#FFD700',
     letterSpacing: 1,
     textAlign: 'center',
-    marginHorizontal: 12,
   },
   scrollButton: {
     padding: 8,
@@ -1234,12 +1259,30 @@ const styles = StyleSheet.create({
   logsSection: {
     marginTop: 24,
   },
+  logsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   logsTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#bc9426',
     letterSpacing: 1,
-    marginBottom: 8,
+  },
+  viewMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  viewMoreText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFD700',
+    letterSpacing: 0.5,
   },
   logsList: {
     marginTop: 4,

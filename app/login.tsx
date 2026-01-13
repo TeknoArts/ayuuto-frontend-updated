@@ -4,13 +4,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { loginUser, saveAuthToken, saveUserData } from '@/utils/auth';
+import { alert } from '@/utils/alert';
+import { useI18n } from '@/utils/i18n';
 
 export default function LoginScreen() {
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -19,7 +21,6 @@ export default function LoginScreen() {
 
     try {
       setIsLoading(true);
-      setError(null);
 
       const { user, token } = await loginUser({ email, password });
 
@@ -40,9 +41,16 @@ export default function LoginScreen() {
       const errorMessage = err?.message || '';
       if (errorMessage.toLowerCase().includes('invalid credentials') || 
           errorMessage.toLowerCase().includes('failed to login')) {
-        setError('Invalid email or password. Please try again.');
+        alert(
+          t('loginFailed'),
+          t('invalidCredentials')
+        );
       } else {
-        // Log other errors but don't display them
+        // Show other errors as popup
+        alert(
+          t('error'),
+          errorMessage || t('unableToLogin')
+        );
         console.error('Login error:', err);
       }
     } finally {
@@ -52,12 +60,10 @@ export default function LoginScreen() {
 
   const handleEmailChange = (text: string) => {
     setEmail(text);
-    if (error) setError(null);
   };
 
   const handlePasswordChange = (text: string) => {
     setPassword(text);
-    if (error) setError(null);
   };
 
   return (
@@ -71,22 +77,20 @@ export default function LoginScreen() {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <Text style={styles.logoText}>AYUUTO</Text>
-            <Text style={styles.tagline}>ORGANIZE WITH TRUST, CELEBRATE TOGETHER.</Text>
+            <Text style={styles.tagline}>{t('organizeWithTrust')}</Text>
           </View>
 
           {/* Login Form */}
           <View style={styles.formContainer}>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to continue</Text>
-
-            {error && <Text style={styles.errorText}>{error}</Text>}
+            <Text style={styles.title}>{t('welcomeBack')}</Text>
+            <Text style={styles.subtitle}>{t('signIn')}</Text>
 
             {/* Email/Phone Input */}
             <View style={styles.inputContainer}>
               <IconSymbol name="envelope.fill" size={20} color="#9BA1A6" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Email or Phone"
+                placeholder={t('emailOrPhone')}
                 placeholderTextColor="#9BA1A6"
                 value={email}
                 onChangeText={handleEmailChange}
@@ -101,7 +105,7 @@ export default function LoginScreen() {
               <IconSymbol name="lock.fill" size={20} color="#9BA1A6" style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, styles.passwordInput]}
-                placeholder="Password"
+                placeholder={t('password')}
                 placeholderTextColor="#9BA1A6"
                 value={password}
                 onChangeText={handlePasswordChange}
@@ -195,12 +199,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#9BA1A6',
     marginBottom: 32,
-  },
-  errorText: {
-    color: '#FF6B6B',
-    fontSize: 14,
-    marginBottom: 16,
-    textAlign: 'center',
   },
   inputContainer: {
     flexDirection: 'row',

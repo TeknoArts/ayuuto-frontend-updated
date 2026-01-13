@@ -3,8 +3,10 @@ import { StyleSheet, View, Text, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useI18n } from '@/utils/i18n';
 
 export default function PaymentProcessingScreen() {
+  const { t } = useI18n();
   const params = useLocalSearchParams();
   const groupId = params.groupId as string;
   const amount = params.amount as string;
@@ -122,12 +124,12 @@ export default function PaymentProcessingScreen() {
         </View>
 
         {/* Congratulations Text */}
-        <Text style={styles.congratulationsText}>CONGRATULATIONS!</Text>
+        <Text style={styles.congratulationsText}>{t('congratulations')}</Text>
         {recipientName ? (
           <Text style={styles.recipientText}>{recipientName.toUpperCase()}</Text>
         ) : null}
-        <Text style={styles.roundText}>ROUND {roundNumber}</Text>
-        <Text style={styles.amountText}>You are receiving this amount</Text>
+        <Text style={styles.roundText}>{t('round')} {roundNumber}</Text>
+        <Text style={styles.amountText}>{t('youAreReceiving')}</Text>
         <View style={styles.amountContainer}>
           <IconSymbol name="dollarsign.circle.fill" size={40} color="#FFD700" />
           <Text style={styles.amountValue}>{amount}</Text>
