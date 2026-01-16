@@ -4,7 +4,7 @@ import { getAuthToken } from './auth';
 // Backend API Configuration
 // Set to true if testing on a physical device, false for simulator/emulator
 const IS_PHYSICAL_DEVICE = true;
-const PHYSICAL_DEVICE_IP = '10.57.30.128'; // Update this to your computer's IP address
+const PHYSICAL_DEVICE_IP = '192.168.18.126'; // Update this to your computer's IP address
 const BACKEND_PORT = 5001;
 
 const getApiBaseUrl = () => {
@@ -467,3 +467,117 @@ export async function getUsers(query?: string): Promise<UserSummary[]> {
   return json.data.users;
 }
 
+// Share Group Link Functions
+export interface ShareLinkData {
+  shareLink: string;
+  shareToken: string;
+  expiresAt: string;
+  shareSettings: {
+    showParticipants: boolean;
+    showPaymentStatus: boolean;
+    showActivityLog: boolean;
+    showAmounts: boolean;
+  };
+}
+
+// Enable sharing and generate share link
+export async function enableGroupSharing(
+  groupId: string,
+  expiresInDays?: number,
+  shareSettings?: {
+    showParticipants?: boolean;
+    showPaymentStatus?: boolean;
+    showActivityLog?: boolean;
+    showAmounts?: boolean;
+  }
+): Promise<ShareLinkData> {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/groups/${groupId}/share/enable`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        expiresInDays: expiresInDays || 90,
+        shareSettings: shareSettings || {
+          showParticipants: true,
+          showPaymentStatus: true,
+          showActivityLog: true,
+          showAmounts: true,
+        },
+      }),
+    }
+  );
+
+  const json: ApiResponse<ShareLinkData> = await response.json();
+
+  if (!response.ok || !json.success || !json.data) {
+    throw new Error(json.message || 'Failed to enable sharing');
+  }
+
+  return json.data;
+}
+
+// Get existing share link
+export async function getGroupShareLink(groupId: string): Promise<ShareLinkData> {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/groups/${groupId}/share`,
+    {
+      method: 'GET',
+      headers,
+    }
+  );
+
+  const json: ApiResponse<ShareLinkData> = await response.json();
+
+  if (!response.ok || !json.success || !json.data) {
+    throw new Error(json.message || 'Failed to get share link');
+  }
+
+  return json.data;
+}
+
+// Disable sharing
+export async function disableGroupSharing(groupId: string): Promise<void> {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/groups/${groupId}/share/disable`,
+    {
+      method: 'POST',
+      headers,
+    }
+  );
+
+  const json: ApiResponse<void> = await response.json();
+
+  if (!response.ok || !json.success) {
+    throw new Error(json.message || 'Failed to disable sharing');
+  }
+}
+
+// Regenerate share token
+export async function regenerateShareToken(
+  groupId: string,
+  expiresInDays?: number
+): Promise<ShareLinkData> {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/groups/${groupId}/share/regenerate`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        expiresInDays: expiresInDays || 90,
+      }),
+    }
+  );
+
+  const json: ApiResponse<ShareLinkData> = await response.json();
+
+  if (!response.ok || !json.success || !json.data) {
+    throw new Error(json.message || 'Failed to regenerate share token');
+  }
+
+  return json.data;
+}

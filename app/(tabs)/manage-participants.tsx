@@ -27,6 +27,7 @@ import {
 } from '@/utils/api';
 import { getUserData } from '@/utils/auth';
 import { alert } from '@/utils/alert';
+import { useI18n } from '@/utils/i18n';
 
 export default function ManageParticipantsScreen() {
   const { t } = useI18n();

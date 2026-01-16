@@ -8,6 +8,8 @@ import {
   getGroupDetails,
   getGroupLogs,
   spinForOrder,
+  enableGroupSharing,
+  getGroupShareLink,
   type Group,
   type Participant,
   type GroupLogEntry,
@@ -383,60 +385,70 @@ export default function GroupDetailsScreen() {
     sortedParticipants[currentRecipientIndexGlobal]?.isPaid === true;
 
   const handleShare = async () => {
-    if (!group) return;
+    if (!group) {
+      alert('Error', 'Group information not available');
+      return;
+    }
+
+    if (!isOwner) {
+      alert('Error', 'Only group admin can share the group link');
+      return;
+    }
 
     try {
-      // Generate shareable link with viewOnly parameter
-      const shareableLink = `ayuuto://group-details?groupId=${groupId}&viewOnly=true`;
-      
-      // Build share message with group details
-      const participantsList = sortedParticipants
-        .map((p, idx) => {
-          const displayName = (p as any).user?.name || p.name;
-          const order = group.isOrderSet && p.order ? `${p.order}. ` : '';
-          const status = p.hasReceivedPayment ? ' (PAID OUT)' : p.isPaid ? ' (PAID)' : ' (UNPAID)';
-          return `${order}${(displayName || '').toUpperCase()}${status}`;
-        })
-        .join('\n');
+      let shareLink: string;
 
-      const currentRecipientInfo = group.isOrderSet && group.currentRecipient
-        ? `\nCurrent Recipient: ${group.currentRecipient.toUpperCase()}`
-        : '';
+      try {
+        // Try to get existing share link
+        console.log('[Share] Attempting to get existing share link for group:', groupId);
+        const shareData = await getGroupShareLink(groupId);
+        shareLink = shareData.shareLink;
+        console.log('[Share] Got existing share link:', shareLink);
+      } catch (error: any) {
+        console.log('[Share] Failed to get share link, error:', error.message);
+        // If sharing not enabled or any error, try to enable it
+        try {
+          console.log('[Share] Attempting to enable sharing for group:', groupId);
+          const shareData = await enableGroupSharing(groupId);
+          shareLink = shareData.shareLink;
+          console.log('[Share] Enabled sharing and got link:', shareLink);
+        } catch (enableError: any) {
+          console.error('[Share] Failed to enable sharing:', enableError);
+          throw new Error(enableError?.message || 'Failed to create share link. Please try again.');
+        }
+      }
 
-      const shareMessage = `AYUUTO GROUP: ${group.name.toUpperCase()}\n\n` +
-        `Total Savings: $${savingsAmount}\n` +
-        `Members: ${group.memberCount}\n` +
-        `Amount per Person: $${group.amountPerPerson || 0}\n` +
-        `Collection Day: ${collectionDay}\n` +
-        `${currentRecipientInfo}\n\n` +
-        `Participants:\n${participantsList}\n\n` +
-        `View Group: ${shareableLink}\n\n` +
+      if (!shareLink) {
+        throw new Error('Share link not generated');
+      }
+
+      // Build share message
+      const shareMessage = `Check out this Ayuuto group: ${group.name}\n\n` +
+        `View the group details: ${shareLink}\n\n` +
         `Shared from Ayuuto App`;
+
+      console.log('[Share] Sharing link:', shareLink);
+
+      // Check if Share API is available
+      if (!Share || typeof Share.share !== 'function') {
+        throw new Error('Share functionality is not available on this device');
+      }
 
       const result = await Share.share({
         message: shareMessage,
         title: `Ayuuto Group: ${group.name}`,
-        url: shareableLink, // For apps that support URL sharing
+        url: shareLink,
       });
 
       if (result.action === Share.sharedAction) {
-        if (result.activityType) {
-          // Shared with activity type of result.activityType
-          console.log('Shared with activity type:', result.activityType);
-        } else {
-          // Shared
-          console.log('Shared successfully');
-        }
+        console.log('[Share] Share link shared successfully');
       } else if (result.action === Share.dismissedAction) {
-        // Dismissed
-        console.log('Share dismissed');
+        console.log('[Share] Share dismissed by user');
       }
     } catch (error: any) {
-      console.error('Error sharing:', error);
-      alert(
-        'Error',
-        error?.message || 'Failed to share group details. Please try again.'
-      );
+      console.error('[Share] Error sharing:', error);
+      const errorMessage = error?.message || 'Failed to share group link. Please try again.';
+      alert('Error', errorMessage);
     }
   };
 
@@ -559,13 +571,13 @@ export default function GroupDetailsScreen() {
           <View style={styles.paymentHeader}>
             <Text style={styles.paymentTitle}>{t('paymentStatus')}</Text>
             {/* Share button - Only show to owners */}
-            {isOwner && (
+            {isOwner && handleShare && (
               <TouchableOpacity 
                 style={styles.shareButton}
                 onPress={handleShare}
                 activeOpacity={0.8}>
                 <IconSymbol name="square.and.arrow.up" size={16} color="#FFFFFF" />
-                <Text style={styles.shareButtonText}>{t('share')}</Text>
+                <Text style={styles.shareButtonText}>{t('share') || 'Share'}</Text>
               </TouchableOpacity>
             )}
           </View>
