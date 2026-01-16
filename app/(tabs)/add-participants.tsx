@@ -22,6 +22,7 @@ import { alert } from '@/utils/alert';
 type ParticipantInput = {
   label: string;
   selectedUserId?: string | null;
+  email?: string | null;
 };
 
 export default function AddParticipantsScreen() {
@@ -34,6 +35,7 @@ export default function AddParticipantsScreen() {
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [openSlotIndex, setOpenSlotIndex] = useState<number | null>(null);
   const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [emailInput, setEmailInput] = useState('');
   
   // Reset form when screen comes into focus
   useFocusEffect(
@@ -84,7 +86,7 @@ export default function AddParticipantsScreen() {
   
   const totalParticipants = memberCount;
 
-  const filledCount = participants.filter((p) => p.selectedUserId).length;
+  const filledCount = participants.filter((p) => p.selectedUserId || p.email).length;
   // Allow progressing even if not all participants are selected.
   // You can even skip participants entirely and manage them later.
   const isFormValid = true;
@@ -94,10 +96,46 @@ export default function AddParticipantsScreen() {
     newParticipants[index] = {
       label: user.name || user.email,
       selectedUserId: user.id,
+      email: null, // Clear email when selecting registered user
     };
     setParticipants(newParticipants);
     setOpenSlotIndex(null);
     setUserSearchQuery('');
+    setEmailInput('');
+  };
+
+  const handleAddByEmail = (index: number) => {
+    const trimmedEmail = emailInput.trim().toLowerCase();
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      alert('Invalid Email', 'Please enter a valid email address.');
+      return;
+    }
+
+    // Check if email belongs to a registered user
+    const existingUser = availableUsers.find(
+      (u) => u.email && u.email.toLowerCase() === trimmedEmail
+    );
+
+    if (existingUser) {
+      // If user exists, add them as registered user
+      handleSelectUserForIndex(index, existingUser);
+      return;
+    }
+
+    // Add as non-registered participant with email
+    const newParticipants = [...participants];
+    newParticipants[index] = {
+      label: trimmedEmail,
+      selectedUserId: null,
+      email: trimmedEmail,
+    };
+    setParticipants(newParticipants);
+    setOpenSlotIndex(null);
+    setUserSearchQuery('');
+    setEmailInput('');
   };
 
   const handleNext = () => {
@@ -106,9 +144,15 @@ export default function AddParticipantsScreen() {
     }
 
     const groupName = (params.groupName as string) || 'Ayuuto Group';
-    const selectedUserIds = participants
-      .filter((p) => p.selectedUserId)
-      .map((p) => p.selectedUserId as string);
+    
+    // Prepare participants data with both userIds and emails
+    const participantsData = participants
+      .filter((p) => p.selectedUserId || p.email)
+      .map((p) => ({
+        userId: p.selectedUserId || null,
+        email: p.email || null,
+        name: p.label || p.email || 'Participant',
+      }));
 
     // Pass all collected data forward to the collection screen;
     // group will actually be created there in a single API flow.
@@ -117,7 +161,7 @@ export default function AddParticipantsScreen() {
       params: {
         groupName,
         memberCount: String(memberCount),
-        participants: JSON.stringify(selectedUserIds),
+        participants: JSON.stringify(participantsData),
         fromWizard: 'true',
       },
     });
@@ -176,17 +220,20 @@ export default function AddParticipantsScreen() {
                         </View>
                         <View style={styles.slotTextContainer}>
                           <Text style={styles.slotTitle}>
-                            {participant.selectedUserId ? participant.label : 'Empty slot'}
+                            {participant.selectedUserId || participant.email ? participant.label : 'Empty slot'}
                           </Text>
-                          {!participant.selectedUserId && (
-                            <Text style={styles.slotSubtitle}>Tap to select a user</Text>
+                          {!participant.selectedUserId && !participant.email && (
+                            <Text style={styles.slotSubtitle}>Tap to select a user or add by email</Text>
+                          )}
+                          {participant.email && !participant.selectedUserId && (
+                            <Text style={styles.slotSubtitle}>{participant.email}</Text>
                           )}
                         </View>
                         <View style={styles.slotIconContainer}>
                           <IconSymbol
-                            name={participant.selectedUserId ? 'person.fill' : 'plus.circle.fill'}
+                            name={participant.selectedUserId ? 'person.fill' : participant.email ? 'envelope.fill' : 'plus.circle.fill'}
                             size={24}
-                            color={participant.selectedUserId ? '#4CAF50' : '#FFD700'}
+                            color={participant.selectedUserId ? '#4CAF50' : participant.email ? '#61a5fb' : '#FFD700'}
                           />
                         </View>
                       </View>
@@ -224,6 +271,7 @@ export default function AddParticipantsScreen() {
         onRequestClose={() => {
           setOpenSlotIndex(null);
           setUserSearchQuery('');
+          setEmailInput('');
         }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -234,6 +282,7 @@ export default function AddParticipantsScreen() {
               Keyboard.dismiss();
               setOpenSlotIndex(null);
               setUserSearchQuery('');
+              setEmailInput('');
             }}>
             <View style={styles.modalOverlayInner}>
               <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
@@ -244,9 +293,51 @@ export default function AddParticipantsScreen() {
                     onPress={() => {
                       setOpenSlotIndex(null);
                       setUserSearchQuery('');
+                      setEmailInput('');
                     }}>
                     <IconSymbol name="xmark.circle.fill" size={22} color="#9BA1A6" />
                   </TouchableOpacity>
+                </View>
+
+                {/* Email Input Section */}
+                <View style={styles.emailInputSection}>
+                  <View style={styles.emailInputContainer}>
+                    <IconSymbol name="envelope" size={16} color="#9BA1A6" />
+                    <TextInput
+                      style={styles.emailInput}
+                      placeholder="Enter email address"
+                      placeholderTextColor="#9BA1A6"
+                      value={emailInput}
+                      onChangeText={setEmailInput}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType="email-address"
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.addEmailButton,
+                      emailInput.trim().length > 0 && styles.addEmailButtonActive
+                    ]}
+                    onPress={() => {
+                      if (openSlotIndex !== null) {
+                        handleAddByEmail(openSlotIndex);
+                      }
+                    }}
+                    disabled={emailInput.trim().length === 0}
+                    activeOpacity={0.7}>
+                    <IconSymbol 
+                      name="plus" 
+                      size={20} 
+                      color={emailInput.trim().length > 0 ? '#000000' : '#9BA1A6'} 
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>OR</Text>
+                  <View style={styles.dividerLine} />
                 </View>
 
                 <View style={styles.dropdownSearchContainer}>
@@ -542,6 +633,60 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  emailInputSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  emailInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0a1628',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#1a2332',
+    gap: 8,
+  },
+  emailInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 14,
+    paddingVertical: 0,
+  },
+  addEmailButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#1a2332',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#2a3441',
+  },
+  addEmailButtonActive: {
+    backgroundColor: '#FFD700',
+    borderColor: '#FFD700',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 12,
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#1a2332',
+  },
+  dividerText: {
+    color: '#9BA1A6',
+    fontSize: 12,
+    fontWeight: '500',
   },
 });
 

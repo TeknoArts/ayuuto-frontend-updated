@@ -114,9 +114,22 @@ export default function CollectionScreen() {
         const participantsParam = params.participants as string | undefined;
         if (participantsParam) {
           try {
-            const userIds: string[] = JSON.parse(participantsParam);
-            if (Array.isArray(userIds) && userIds.length > 0) {
-              const payload = userIds.map((id) => ({ userId: id }));
+            const participantsData = JSON.parse(participantsParam);
+            if (Array.isArray(participantsData) && participantsData.length > 0) {
+              // Handle both old format (array of strings) and new format (array of objects)
+              const payload = participantsData.map((p: any) => {
+                if (typeof p === 'string') {
+                  // Old format: just userId string
+                  return { userId: p };
+                } else {
+                  // New format: object with userId, email, name
+                  return {
+                    userId: p.userId || null,
+                    email: p.email || null,
+                    name: p.name || null,
+                  };
+                }
+              });
               await addParticipants(groupId, payload as any);
             }
           } catch (e) {
