@@ -4,7 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { LoadingBar } from '@/components/ui/loading-bar';
 import { getGroupLogs, type GroupLogEntry } from '@/utils/api';
+import { formatParticipantName } from '@/utils/participant';
 
 export default function GroupActivityLogScreen() {
   const params = useLocalSearchParams();
@@ -86,6 +89,7 @@ export default function GroupActivityLogScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      {isLoading && <LoadingBar />}
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -117,7 +121,7 @@ export default function GroupActivityLogScreen() {
         {/* Logs List */}
         {isLoading ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>Loading activity...</Text>
+            <LoadingSpinner size={40} text="Loading activity..." />
           </View>
         ) : logs.length === 0 ? (
           <View style={styles.emptyState}>
@@ -155,7 +159,7 @@ export default function GroupActivityLogScreen() {
                     <View style={styles.logTextContainer}>
                       <Text style={styles.logMainText}>
                         {log.participantName
-                          ? `${log.participantName} paid`
+                          ? `${formatParticipantName(log.participantName)} paid`
                           : 'Payment recorded'}
                         {typeof log.roundNumber === 'number'
                           ? ` • Round ${log.roundNumber}`

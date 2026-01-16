@@ -16,6 +16,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { LoadingBar } from '@/components/ui/loading-bar';
 import {
   getGroupDetails,
   getUserGroups,
@@ -28,6 +30,7 @@ import {
 import { getUserData } from '@/utils/auth';
 import { alert } from '@/utils/alert';
 import { useI18n } from '@/utils/i18n';
+import { formatParticipantName } from '@/utils/participant';
 
 export default function ManageParticipantsScreen() {
   const { t } = useI18n();
@@ -148,8 +151,9 @@ export default function ManageParticipantsScreen() {
   if (isLoading || !group) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        <View className="flex-1 items-center justify-center">
-          <Text style={styles.loadingText}>Loading participants...</Text>
+        <LoadingBar />
+        <View style={styles.loadingContainer}>
+          <LoadingSpinner size={48} text="Loading participants..." fullScreen />
         </View>
       </SafeAreaView>
     );
@@ -159,6 +163,7 @@ export default function ManageParticipantsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      {isSaving && <LoadingBar />}
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <View style={styles.header}>
@@ -186,7 +191,8 @@ export default function ManageParticipantsScreen() {
           ) : (
             <View style={styles.participantsList}>
               {participants.map((p) => {
-                const displayName = (p as any).user?.name || p.name;
+                const rawName = (p as any).user?.name || p.name;
+                const displayName = formatParticipantName(rawName);
                 return (
                   <View key={p.id} style={styles.participantRow}>
                     <View style={styles.participantInfo}>
@@ -268,7 +274,14 @@ export default function ManageParticipantsScreen() {
           style={styles.doneButton}
           onPress={handleDone}
           disabled={isSaving}>
-          <Text style={styles.doneButtonText}>{isSaving ? 'Saving...' : 'DONE'}</Text>
+          {isSaving ? (
+            <View style={styles.doneButtonLoading}>
+              <LoadingSpinner size={20} color="#FFFFFF" />
+              <Text style={styles.doneButtonText}>Saving...</Text>
+            </View>
+          ) : (
+            <Text style={styles.doneButtonText}>DONE</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
       {/* User selection modal */}
@@ -524,6 +537,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 1,
+  },
+  doneButtonLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingText: {
     color: '#FFFFFF',

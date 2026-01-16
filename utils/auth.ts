@@ -7,9 +7,12 @@ const USER_DATA_KEY = 'user_data';
 
 // Backend API Configuration
 // ============================================
-// IMPORTANT: Update these settings based on where you're running the app
+// PRODUCTION MODE: Set to true to use Railway server
 // ============================================
+const USE_PRODUCTION = true; // Set to true to use Railway, false for local development
+const PRODUCTION_API_URL = 'https://web-production-40b9d.up.railway.app/api'; // TODO: Replace with your Railway URL
 
+// Local Development Configuration
 // Set to true if testing on a PHYSICAL DEVICE (iPhone/Android phone)
 // Set to false if testing on SIMULATOR/EMULATOR
 const IS_PHYSICAL_DEVICE = true; // Change this based on your setup
@@ -22,6 +25,12 @@ const BACKEND_PORT = 5001;
 
 // Automatically detects the correct URL based on platform and device type
 const getApiBaseUrl = () => {
+  // Use production URL if enabled
+  if (USE_PRODUCTION) {
+    return PRODUCTION_API_URL;
+  }
+  
+  // Local development URLs
   let url: string;
   
   if (Platform.OS === 'web') {
@@ -68,6 +77,14 @@ type AuthResponse = {
   data?: {
     user: UserData;
     token: string;
+  };
+  message?: string;
+};
+
+type VerifyOTPResponse = {
+  success: boolean;
+  data?: {
+    verificationToken: string;
   };
   message?: string;
 };
@@ -266,7 +283,25 @@ export async function loginUser(payload: {
       15000 // 15 second timeout
     );
 
-  const json = await parseJsonSafe(response);
+  // Check if response is JSON before parsing
+  let json: any;
+  const contentType = response.headers.get('content-type');
+  
+  if (contentType && contentType.includes('application/json')) {
+    json = await response.json();
+  } else {
+    // If not JSON, get text response for debugging
+    const text = await response.text();
+    console.error('[API] Non-JSON response:', text);
+    console.error('[API] Response status:', response.status);
+    console.error('[API] Response URL:', response.url);
+    
+    if (response.status === 404 || text.includes('not found') || text.includes('Application not found')) {
+      throw new Error(`Railway service not found or not running. Please check:\n1. Railway dashboard - is service online?\n2. Service URL: ${API_BASE_URL}\n3. Check Railway deployment logs`);
+    }
+    
+    throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+  }
 
   if (!json) {
     const statusMessage = response.ok ? 'Empty response from server' : `Server error (${response.status})`;
@@ -274,6 +309,42 @@ export async function loginUser(payload: {
   }
 
   if (!response.ok || !json.success || !json.data) {
+    // Log full response for debugging
+    console.error('[API] Login error response:', {
+      status: response.status,
+      statusText: response.statusText,
+      url: response.url,
+      message: json.message,
+      success: json.success
+    });
+    
+    // Handle Railway-specific errors
+    if (json.message && (json.message.includes('not found') || json.message.includes('Application not found'))) {
+      const errorMsg = `Railway service error: ${json.message}\n\n` +
+        `Troubleshooting:\n` +
+        `1. Check Railway dashboard: https://railway.app\n` +
+        `2. Verify service is online (green dot)\n` +
+        `3. Service URL: ${API_BASE_URL}\n` +
+        `4. Check Railway deployment logs for errors\n` +
+        `5. Try redeploying the service in Railway`;
+      throw new Error(errorMsg);
+    }
+    
+    // Handle authentication errors with helpful messages
+    if (json.message && json.message.includes('Invalid credentials')) {
+      const errorMsg = `Invalid email or password.\n\n` +
+        `Possible reasons:\n` +
+        `1. Email or password is incorrect\n` +
+        `2. Account doesn't exist - try registering first\n` +
+        `3. Password was changed - use "Forgot Password" to reset\n` +
+        `4. Check for typos in email or password`;
+      throw new Error(errorMsg);
+    }
+    
+    if (json.message && json.message.includes('Email and password are required')) {
+      throw new Error('Please enter both email and password');
+    }
+    
     const message = json.message || 'Failed to login';
     throw new Error(message);
   }
@@ -283,15 +354,57 @@ export async function loginUser(payload: {
     // Improve error messages for common issues
     if (__DEV__) {
       console.error('[API] Login error:', error);
+      console.error('[API] Error details:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack?.substring(0, 200)
+      });
     }
     
-    if (error.message.includes('timed out')) {
-      const errorMsg = `Connection timeout!\n\nTrying to connect to: ${API_BASE_URL}\n\nTroubleshooting:\n1. Make sure backend is running: cd ayuuto-backend && npm start\n2. Find your IP: ifconfig | grep "inet " | grep -v 127.0.0.1\n3. Update IP in utils/auth.ts line 19 (current: ${PHYSICAL_DEVICE_IP})\n4. Ensure phone and computer are on the SAME Wi-Fi network\n5. Check firewall allows port ${BACKEND_PORT}`;
+    // Handle Railway-specific errors
+    if (error.message.includes('failed to respond') || error.message.includes('Application failed to respond')) {
+      const errorMsg = `Railway service failed to respond!\n\n` +
+        `Troubleshooting:\n` +
+        `1. Check Railway dashboard: https://railway.app\n` +
+        `2. Verify service is online (green dot)\n` +
+        `3. Service URL: ${API_BASE_URL}\n` +
+        `4. Check Railway logs for errors:\n` +
+        `   - Look for "MONGODB_URI not set" → Add MONGODB_URI in Railway Variables\n` +
+        `   - Look for "MongoDB connection error" → Check MongoDB Atlas settings\n` +
+        `   - Look for "Server is running" → Service is up\n` +
+        `5. Service might be sleeping (free tier) - try accessing Railway dashboard\n` +
+        `6. If MongoDB error: Set MONGODB_URI in Railway → Variables → + New Variable\n` +
+        `7. Try redeploying the service in Railway`;
       throw new Error(errorMsg);
     }
-    if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
-      throw new Error(buildNetworkErrorMessage('/auth/login'));
+    
+    if (error.message.includes('timed out') || error.message.includes('timeout')) {
+      const errorMsg = `Connection timeout!\n\nTrying to connect to: ${API_BASE_URL}\n\n` +
+        `Troubleshooting:\n` +
+        `1. Check Railway dashboard - is service online?\n` +
+        `2. Service might be slow or sleeping\n` +
+        `3. Check Railway logs for errors\n` +
+        `4. Try accessing: ${API_BASE_URL.replace('/api', '')} in browser`;
+      throw new Error(errorMsg);
     }
+    
+    if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
+      if (USE_PRODUCTION) {
+        throw new Error(`Cannot connect to Railway server!\n\n` +
+          `Service URL: ${API_BASE_URL}\n\n` +
+          `Troubleshooting:\n` +
+          `1. Check Railway dashboard - is service online?\n` +
+          `2. Check Railway logs for:\n` +
+          `   - "MONGODB_URI not set" → Add MONGODB_URI in Railway Variables\n` +
+          `   - "MongoDB connection error" → Check MongoDB Atlas\n` +
+          `3. Test URL in browser: ${API_BASE_URL.replace('/api', '')}\n` +
+          `4. Check Railway deployment logs\n` +
+          `5. Verify service is not sleeping (free tier)`);
+      } else {
+        throw new Error(buildNetworkErrorMessage('/auth/login'));
+      }
+    }
+    
     throw error;
   }
 }
@@ -375,7 +488,7 @@ export async function verifyOTP(payload: {
       15000
     );
 
-    const json = await parseJsonSafe(response);
+    const json = await parseJsonSafe(response) as VerifyOTPResponse | null;
 
     if (!json) {
       const statusMessage = response.ok ? 'Empty response from server' : `Server error (${response.status})`;

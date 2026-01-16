@@ -5,6 +5,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useI18n } from '@/utils/i18n';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { LoadingBar } from '@/components/ui/loading-bar';
 
 type Frequency = 'MONTHLY' | 'WEEKLY';
 
@@ -16,6 +18,7 @@ export default function CollectionScreen() {
   const [frequency, setFrequency] = useState<Frequency>('MONTHLY');
   const [isAmountFocused, setIsAmountFocused] = useState(false);
   const [isCollectionDateFocused, setIsCollectionDateFocused] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Reset form when screen comes into focus
   useFocusEffect(
@@ -95,6 +98,7 @@ export default function CollectionScreen() {
       return;
     }
     try {
+      setIsCreating(true);
       const { createGroup, addParticipants, setCollectionDetails } = await import('@/utils/api');
 
       const existingGroupId = params.groupId as string | undefined;
@@ -169,6 +173,8 @@ export default function CollectionScreen() {
         t('error'),
         error?.message || t('failedToCreate')
       );
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -294,8 +300,15 @@ export default function CollectionScreen() {
                 ]}
                 onPress={handleCreate}
                 activeOpacity={0.8}
-                disabled={!isFormValid}>
-                <Text style={styles.createButtonText}>{t('create')} & {t('celebrate')}!</Text>
+                disabled={!isFormValid || isCreating}>
+                {isCreating ? (
+                  <View style={styles.createButtonLoading}>
+                    <LoadingSpinner size={20} color="#FFFFFF" />
+                    <Text style={styles.createButtonText}>Creating...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.createButtonText}>{t('create')} & {t('celebrate')}!</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -470,6 +483,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     letterSpacing: 1.5,
+  },
+  createButtonLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
 });
 

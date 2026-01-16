@@ -16,8 +16,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { getUsers, type UserSummary } from '@/utils/api';
 import { alert } from '@/utils/alert';
+import { formatParticipantName } from '@/utils/participant';
 
 type ParticipantInput = {
   label: string;
@@ -220,13 +222,15 @@ export default function AddParticipantsScreen() {
                         </View>
                         <View style={styles.slotTextContainer}>
                           <Text style={styles.slotTitle}>
-                            {participant.selectedUserId || participant.email ? participant.label : 'Empty slot'}
+                            {participant.selectedUserId || participant.email 
+                              ? formatParticipantName(participant.label) 
+                              : 'Empty slot'}
                           </Text>
                           {!participant.selectedUserId && !participant.email && (
                             <Text style={styles.slotSubtitle}>Tap to select a user or add by email</Text>
                           )}
                           {participant.email && !participant.selectedUserId && (
-                            <Text style={styles.slotSubtitle}>{participant.email}</Text>
+                            <Text style={styles.slotSubtitle}>{formatParticipantName(participant.email)}</Text>
                           )}
                         </View>
                         <View style={styles.slotIconContainer}>
@@ -354,7 +358,9 @@ export default function AddParticipantsScreen() {
                 </View>
 
                 {isLoadingUsers ? (
-                  <Text style={styles.dropdownEmptyText}>Loading users...</Text>
+                  <View style={styles.dropdownLoadingContainer}>
+                    <LoadingSpinner size={32} text="Loading users..." />
+                  </View>
                 ) : (() => {
                   const q = userSearchQuery.trim().toLowerCase();
                   const filtered =
@@ -582,6 +588,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     color: '#9BA1A6',
     fontSize: 13,
+  },
+  dropdownLoadingContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   nextButton: {
     backgroundColor: '#152b45',

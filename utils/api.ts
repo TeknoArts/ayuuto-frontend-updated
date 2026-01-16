@@ -2,12 +2,24 @@ import { Platform } from 'react-native';
 import { getAuthToken } from './auth';
 
 // Backend API Configuration
-// Set to true if testing on a physical device, false for simulator/emulator
+// ============================================
+// PRODUCTION MODE: Set to true to use Railway server
+// ============================================
+const USE_PRODUCTION = true; // Set to true to use Railway, false for local development
+const PRODUCTION_API_URL = 'https://web-production-40b9d.up.railway.app/api'; // TODO: Replace with your Railway URL
+
+// Local Development Configuration
 const IS_PHYSICAL_DEVICE = true;
 const PHYSICAL_DEVICE_IP = '192.168.18.126'; // Update this to your computer's IP address
 const BACKEND_PORT = 5001;
 
 const getApiBaseUrl = () => {
+  // Use production URL if enabled
+  if (USE_PRODUCTION) {
+    return PRODUCTION_API_URL;
+  }
+  
+  // Local development URLs
   if (Platform.OS === 'web') {
     return `http://localhost:${BACKEND_PORT}/api`;
   } else if (Platform.OS === 'ios') {
@@ -317,9 +329,49 @@ export async function getUserGroups(): Promise<Group[]> {
       30000 // 30 second timeout
     );
 
-    const json: ApiResponse<{ groups: Group[] }> = await response.json();
+    // Check if response is JSON before parsing
+    let json: ApiResponse<{ groups: Group[] }>;
+    const contentType = response.headers.get('content-type');
+    
+    if (contentType && contentType.includes('application/json')) {
+      json = await response.json();
+    } else {
+      // If not JSON, get text response for debugging
+      const text = await response.text();
+      console.error('[API] Non-JSON response:', text);
+      console.error('[API] Response status:', response.status);
+      console.error('[API] Response URL:', response.url);
+      
+      if (response.status === 404 || text.includes('not found') || text.includes('Application not found')) {
+        throw new Error(`Railway service not found or not running. Please check:\n1. Railway dashboard - is service online?\n2. Service URL: ${API_BASE_URL}\n3. Check Railway deployment logs`);
+      }
+      
+      throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+    }
 
     if (!response.ok || !json.success || !json.data) {
+      // Log full response for debugging
+      console.error('[API] Error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        message: json.message,
+        success: json.success,
+        data: json.data
+      });
+      
+      // Handle Railway-specific errors
+      if (json.message && (json.message.includes('not found') || json.message.includes('Application not found'))) {
+        const errorMsg = `Railway service error: ${json.message}\n\n` +
+          `Troubleshooting:\n` +
+          `1. Check Railway dashboard: https://railway.app\n` +
+          `2. Verify service is online (green dot)\n` +
+          `3. Service URL: ${API_BASE_URL}\n` +
+          `4. Check Railway deployment logs for errors\n` +
+          `5. Try redeploying the service in Railway`;
+        throw new Error(errorMsg);
+      }
+      
       // If unauthorized, clear token and provide helpful error message
       if (response.status === 401) {
         const errorMsg = json.message || 'Not authorized';
@@ -337,6 +389,7 @@ export async function getUserGroups(): Promise<Group[]> {
         
         throw new Error(`${errorMsg}. Please log in again.`);
       }
+      
       throw new Error(json.message || 'Failed to get groups');
     }
 

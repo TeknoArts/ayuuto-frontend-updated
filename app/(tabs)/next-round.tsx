@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useI18n } from '@/utils/i18n';
+import { formatParticipantName } from '@/utils/participant';
 
 export default function NextRoundScreen() {
   const { t } = useI18n();
@@ -138,7 +139,7 @@ export default function NextRoundScreen() {
         {isSpin ? (
           <Text style={styles.nextRecipientText}>{t('spinningParticipants')}</Text>
         ) : nextRecipientName ? (
-          <Text style={styles.nextRecipientText}>{t('nextLabel')} {nextRecipientName.toUpperCase()}</Text>
+          <Text style={styles.nextRecipientText}>{t('nextLabel')} {formatParticipantName(nextRecipientName).toUpperCase()}</Text>
         ) : (
           <Text style={styles.startingText}>{t('starting')}</Text>
         )}

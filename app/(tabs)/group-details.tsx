@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { LoadingBar } from '@/components/ui/loading-bar';
 import {
   getGroupDetails,
   getGroupLogs,
@@ -17,6 +19,7 @@ import {
 import { getUserData, UserData } from '@/utils/auth';
 import { alert } from '@/utils/alert';
 import { useI18n } from '@/utils/i18n';
+import { formatParticipantName } from '@/utils/participant';
 
 export default function GroupDetailsScreen() {
   const { t } = useI18n();
@@ -180,7 +183,7 @@ export default function GroupDetailsScreen() {
           : participants;
         const currentIndex = updatedGroup.currentRecipientIndex || 0;
         const current = sorted[currentIndex];
-        const nextRecipientName = current?.name || '';
+        const nextRecipientName = formatParticipantName(current?.name || '');
         const roundNumber = (currentIndex + 1).toString();
 
         router.push({
@@ -264,7 +267,7 @@ export default function GroupDetailsScreen() {
           ? [...(updatedGroup.participants || [])].sort((a, b) => (a.order || 0) - (b.order || 0))
           : (updatedGroup.participants || []);
         const currentRecipient = sortedParticipants[currentRecipientIndex];
-        const recipientName = currentRecipient?.name || '';
+        const recipientName = formatParticipantName(currentRecipient?.name || '');
         const roundNumber = (currentRecipientIndex + 1).toString();
         
         // Navigate to payment processing screen
@@ -328,8 +331,9 @@ export default function GroupDetailsScreen() {
   if (isLoading || !group) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <LoadingBar />
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
+          <LoadingSpinner size={48} text="Loading group details..." fullScreen />
         </View>
       </SafeAreaView>
     );
@@ -344,7 +348,10 @@ export default function GroupDetailsScreen() {
   const sortedParticipants = group.isOrderSet
     ? [...participants].sort((a, b) => (a.order || 0) - (b.order || 0))
     : participants;
-  const nextRecipient = group.currentRecipient || null;
+  // Format next recipient name if it's an email
+  const nextRecipient = group.currentRecipient 
+    ? formatParticipantName(group.currentRecipient) 
+    : null;
   const participantsCount = participants.length;
   const isParticipantsComplete =
     (group.memberCount ?? 0) > 0 &&
@@ -519,7 +526,7 @@ export default function GroupDetailsScreen() {
                     ))}
                   </View>
                 ) : nextRecipient ? (
-                  <Text style={styles.nextRecipientName}>{nextRecipient.toUpperCase()}</Text>
+                  <Text style={styles.nextRecipientName}>{formatParticipantName(nextRecipient).toUpperCase()}</Text>
                 ) : (
                   <Text style={styles.questionMarks}>???</Text>
                 )}
@@ -594,7 +601,8 @@ export default function GroupDetailsScreen() {
                 participant.hasReceivedPayment === true ||
                 (isFirst && isPaid);
               
-              const displayName = (participant as any).user?.name || participant.name;
+              const rawName = (participant as any).user?.name || participant.name;
+              const displayName = formatParticipantName(rawName);
               
               // Check if all other participants (excluding the current recipient) have paid
               // Note: Paid-out members still need to pay in subsequent rounds
@@ -723,7 +731,7 @@ export default function GroupDetailsScreen() {
           </View>
           {isLogsLoading ? (
             <View style={styles.logsEmptyState}>
-              <Text style={styles.logsEmptyText}>{t('loadingActivity')}</Text>
+              <LoadingSpinner size={32} text={t('loadingActivity')} />
             </View>
           ) : logs.length === 0 ? (
             <View style={styles.logsEmptyState}>
@@ -816,11 +824,11 @@ export default function GroupDetailsScreen() {
                   const recipient = sorted.find(
                     (p) => p.id === updatedGroup.currentRound!.recipientParticipantId
                   );
-                  nextRecipientName = recipient?.name || '';
+                  nextRecipientName = formatParticipantName(recipient?.name || '');
                 } else {
                   const nextIndex = updatedGroup.currentRecipientIndex || 0;
                   const nextRecipient = sorted[nextIndex];
-                  nextRecipientName = nextRecipient?.name || '';
+                  nextRecipientName = formatParticipantName(nextRecipient?.name || '');
                   roundNumber = (nextIndex + 1).toString();
                 }
                   

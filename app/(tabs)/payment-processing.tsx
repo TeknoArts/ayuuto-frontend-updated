@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useI18n } from '@/utils/i18n';
+import { formatParticipantName } from '@/utils/participant';
 
 export default function PaymentProcessingScreen() {
   const { t } = useI18n();
@@ -126,7 +127,7 @@ export default function PaymentProcessingScreen() {
         {/* Congratulations Text */}
         <Text style={styles.congratulationsText}>{t('congratulations')}</Text>
         {recipientName ? (
-          <Text style={styles.recipientText}>{recipientName.toUpperCase()}</Text>
+          <Text style={styles.recipientText}>{formatParticipantName(recipientName).toUpperCase()}</Text>
         ) : null}
         <Text style={styles.roundText}>{t('round')} {roundNumber}</Text>
         <Text style={styles.amountText}>{t('youAreReceiving')}</Text>

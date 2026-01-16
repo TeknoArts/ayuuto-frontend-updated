@@ -15,6 +15,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { verifyOTP } from '@/utils/auth';
 import { alert } from '@/utils/alert';
+import { useI18n } from '@/utils/i18n';
 
 export default function VerifyOTPScreen() {
   const { t } = useI18n();

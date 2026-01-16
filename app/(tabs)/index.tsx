@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, FlatList } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, FlatList, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -411,6 +411,87 @@ export default function HomeScreen() {
 
   const displayName = user?.name || user?.email || 'Friend';
 
+  // Loading skeleton component
+  const LoadingSkeleton = () => {
+    const shimmerAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+      const shimmer = Animated.loop(
+        Animated.sequence([
+          Animated.timing(shimmerAnim, {
+            toValue: 1,
+            duration: 1500,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          Animated.timing(shimmerAnim, {
+            toValue: 0,
+            duration: 1500,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      shimmer.start();
+      return () => shimmer.stop();
+    }, []);
+
+    const opacity = shimmerAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.3, 0.7],
+    });
+
+    return (
+      <View style={styles.loadingContainer}>
+        {[1, 2, 3].map((i) => (
+          <View key={i} style={styles.skeletonCard}>
+            <Animated.View style={[styles.skeletonContent, { opacity }]}>
+              <View style={styles.skeletonHeader}>
+                <View style={[styles.skeletonLine, styles.skeletonTitle]} />
+                <View style={[styles.skeletonLine, styles.skeletonIcon]} />
+              </View>
+              <View style={styles.skeletonDetails}>
+                <View style={[styles.skeletonLine, styles.skeletonDetail]} />
+              </View>
+            </Animated.View>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  // Spinner component
+  const LoadingSpinner = () => {
+    const spinAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+      const spin = Animated.loop(
+        Animated.timing(spinAnim, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      );
+      spin.start();
+      return () => spin.stop();
+    }, []);
+
+    const spin = spinAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: ['0deg', '360deg'],
+    });
+
+    return (
+      <View style={styles.loadingSpinnerContainer}>
+        <Animated.View style={{ transform: [{ rotate: spin }] }}>
+          <IconSymbol name="arrow.clockwise" size={32} color="#FFD700" />
+        </Animated.View>
+        <Text style={styles.loadingSpinnerText}>{t('loading')}</Text>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
@@ -437,9 +518,7 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitleYellow}>{t('ayuutoManager')}</Text>
           {isLoading ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>{t('loading')}</Text>
-            </View>
+            <LoadingSkeleton />
           ) : managedGroups.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>{t('dontManageGroups')}</Text>
@@ -513,9 +592,7 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitleBlue}>{t('myAyuutos')}</Text>
           {isLoading ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>Loading...</Text>
-            </View>
+            <LoadingSkeleton />
           ) : joinedGroups.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>YOU ARE NOT A PARTICIPANT IN ANY AYUUTO YET.</Text>
@@ -772,5 +849,60 @@ const styles = StyleSheet.create({
   fundDetailsText: {
     color: '#9BA1A6',
     fontSize: 14,
+  },
+  loadingContainer: {
+    gap: 12,
+  },
+  skeletonCard: {
+    backgroundColor: '#002b61',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2a3441',
+    padding: 16,
+    overflow: 'hidden',
+  },
+  skeletonContent: {
+    gap: 12,
+  },
+  skeletonHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  skeletonLine: {
+    backgroundColor: '#1a2332',
+    borderRadius: 4,
+    height: 16,
+  },
+  skeletonTitle: {
+    width: '60%',
+    height: 20,
+    marginBottom: 8,
+  },
+  skeletonIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+  },
+  skeletonDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  skeletonDetail: {
+    width: '40%',
+    height: 14,
+  },
+  loadingSpinnerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    gap: 16,
+  },
+  loadingSpinnerText: {
+    color: '#FFD700',
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 1,
   },
 });
