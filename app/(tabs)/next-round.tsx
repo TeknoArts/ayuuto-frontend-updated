@@ -119,42 +119,66 @@ export default function NextRoundScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.content}>
-        {/* Confetti Poppers */}
-        <View style={styles.confettiContainer}>
-          <View style={styles.confettiLeft}>
-            <IconSymbol name="party.popper.fill" size={40} color="#FFD700" />
+        {/* Decorative Elements */}
+        <View style={styles.decorativeContainer}>
+          <View style={styles.decorativeLeft}>
+            <IconSymbol name="arrow.triangle.2.circlepath" size={28} color="#61a5fb" />
           </View>
-          <View style={styles.confettiRight}>
-            <IconSymbol name="party.popper.fill" size={40} color="#FFD700" />
+          <View style={styles.decorativeRight}>
+            <IconSymbol name="arrow.triangle.2.circlepath" size={28} color="#61a5fb" />
           </View>
         </View>
 
-        {/* Header Text varies by mode */}
-        <Text style={styles.nextRoundText}>
-          {isSpin ? t('settingOrder') : t('nextRoundStarting')}
-        </Text>
-        <Text style={styles.roundNumberText}>
-          {isSpin ? `${t('preparingRound')} ${roundNumber}` : `${t('round')} ${roundNumber}`}
-        </Text>
-        {isSpin ? (
-          <Text style={styles.nextRecipientText}>{t('spinningParticipants')}</Text>
-        ) : nextRecipientName ? (
-          <Text style={styles.nextRecipientText}>{t('nextLabel')} {formatParticipantName(nextRecipientName).toUpperCase()}</Text>
-        ) : (
-          <Text style={styles.startingText}>{t('starting')}</Text>
-        )}
+        {/* Main Content Card */}
+        <View style={styles.card}>
+          {/* Header Section */}
+          <View style={styles.headerSection}>
+            <Text style={styles.mainTitle}>
+              {isSpin ? t('settingOrder') : t('nextRoundStarting')}
+            </Text>
+          </View>
 
-        {/* Progress Bar Container */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBarBackground}>
-            <Animated.View
-              style={[
-                styles.progressBarFill,
-                {
-                  width: progressWidth,
-                },
-              ]}
-            />
+          {/* Round Section */}
+          <View style={styles.roundSection}>
+            <Text style={styles.roundLabel}>
+              {isSpin ? t('preparingRound') : t('round')}
+            </Text>
+            <Text style={styles.roundNumber}>{roundNumber}</Text>
+          </View>
+
+          {/* Recipient Section */}
+          {isSpin ? (
+            <View style={styles.recipientSection}>
+              <Text style={styles.recipientLabel}>{t('spinningParticipants')}</Text>
+            </View>
+          ) : nextRecipientName ? (
+            <View style={styles.recipientSection}>
+              <Text style={styles.recipientLabel}>{t('nextLabel')}</Text>
+              <Text style={styles.recipientName}>
+                {formatParticipantName(nextRecipientName).toUpperCase()}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.recipientSection}>
+              <Text style={styles.recipientLabel}>{t('starting')}</Text>
+            </View>
+          )}
+
+          {/* Progress Bar */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBarBackground}>
+              <Animated.View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    width: progressWidth,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.progressText}>
+              {isSpin ? 'Setting order...' : 'Preparing round...'}
+            </Text>
           </View>
         </View>
       </View>
@@ -165,74 +189,119 @@ export default function NextRoundScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'rgba(1, 27, 61, 0.95)',
+    backgroundColor: '#011b3d',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
   },
-  confettiContainer: {
+  decorativeContainer: {
     position: 'absolute',
-    top: '20%',
+    top: '15%',
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 40,
+    paddingHorizontal: 32,
+    zIndex: 0,
   },
-  confettiLeft: {
-    transform: [{ rotate: '-20deg' }],
+  decorativeLeft: {
+    transform: [{ rotate: '-15deg' }],
+    opacity: 0.5,
   },
-  confettiRight: {
-    transform: [{ rotate: '20deg' }],
+  decorativeRight: {
+    transform: [{ rotate: '15deg' }],
+    opacity: 0.5,
   },
-  nextRoundText: {
+  card: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: '#002b61',
+    borderRadius: 24,
+    padding: 32,
+    borderWidth: 1,
+    borderColor: '#1a3a5f',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  headerSection: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  mainTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#FFD700',
+    letterSpacing: 1.5,
+    textAlign: 'center',
+    lineHeight: 36,
+  },
+  roundSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a3a5f',
+  },
+  roundLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9BA1A6',
+    letterSpacing: 1,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  roundNumber: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: '#FFD700',
-    letterSpacing: 3,
-    marginBottom: 8,
-    textAlign: 'center',
+    color: '#FFFFFF',
+    letterSpacing: 2,
   },
-  roundNumberText: {
+  recipientSection: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  recipientLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9BA1A6',
+    letterSpacing: 1,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  recipientName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFD700',
-    letterSpacing: 2,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  nextRecipientText: {
-    fontSize: 22,
-    fontWeight: '600',
     color: '#FFFFFF',
     letterSpacing: 1.5,
-    marginBottom: 60,
-    textAlign: 'center',
-  },
-  startingText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    letterSpacing: 2,
-    marginBottom: 60,
     textAlign: 'center',
   },
   progressContainer: {
-    width: '80%',
-    marginTop: 40,
+    width: '100%',
+    marginTop: 8,
   },
   progressBarBackground: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 4,
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 3,
     overflow: 'hidden',
+    marginBottom: 12,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#4CAF50',
-    borderRadius: 4,
+    backgroundColor: '#61a5fb',
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#9BA1A6',
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
 });
 

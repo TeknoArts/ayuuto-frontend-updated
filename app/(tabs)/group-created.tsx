@@ -133,30 +133,37 @@ export default function GroupCreatedScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.content}>
-        {/* Confetti Poppers */}
-        <View style={styles.confettiContainer}>
-          <View style={styles.confettiLeft}>
-            <IconSymbol name="party.popper.fill" size={40} color="#FFD700" />
+        {/* Decorative Elements */}
+        <View style={styles.decorativeContainer}>
+          <View style={styles.decorativeLeft}>
+            <IconSymbol name="checkmark.circle.fill" size={32} color="#4CAF50" />
           </View>
-          <View style={styles.confettiRight}>
-            <IconSymbol name="party.popper.fill" size={40} color="#FFD700" />
+          <View style={styles.decorativeRight}>
+            <IconSymbol name="checkmark.circle.fill" size={32} color="#4CAF50" />
           </View>
         </View>
 
-        {/* Group Created Text */}
-        <Text style={styles.groupCreatedText}>GROUP CREATED</Text>
+        {/* Main Content Card */}
+        <View style={styles.card}>
+          {/* Header Section */}
+          <View style={styles.headerSection}>
+            <IconSymbol name="checkmark.circle.fill" size={64} color="#4CAF50" />
+            <Text style={styles.groupCreatedText}>Group Created</Text>
+          </View>
 
-        {/* Progress Bar Container */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBarBackground}>
-            <Animated.View
-              style={[
-                styles.progressBarFill,
-                {
-                  width: progressWidth,
-                },
-              ]}
-            />
+          {/* Progress Bar */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBarBackground}>
+              <Animated.View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    width: progressWidth,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.progressText}>Loading group details...</Text>
           </View>
         </View>
       </View>
@@ -167,50 +174,80 @@ export default function GroupCreatedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'rgba(1, 27, 61, 0.95)',
+    backgroundColor: '#011b3d',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
   },
-  confettiContainer: {
+  decorativeContainer: {
     position: 'absolute',
-    top: '30%',
+    top: '15%',
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 40,
+    paddingHorizontal: 32,
+    zIndex: 0,
   },
-  confettiLeft: {
-    transform: [{ rotate: '-20deg' }],
+  decorativeLeft: {
+    transform: [{ rotate: '-15deg' }],
+    opacity: 0.5,
   },
-  confettiRight: {
-    transform: [{ rotate: '20deg' }],
+  decorativeRight: {
+    transform: [{ rotate: '15deg' }],
+    opacity: 0.5,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: '#002b61',
+    borderRadius: 24,
+    padding: 32,
+    borderWidth: 1,
+    borderColor: '#1a3a5f',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  headerSection: {
+    alignItems: 'center',
+    marginBottom: 32,
   },
   groupCreatedText: {
-    fontSize: 48,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '700',
     color: '#FFD700',
-    letterSpacing: 3,
-    marginBottom: 60,
+    letterSpacing: 1.5,
     textAlign: 'center',
+    marginTop: 16,
+    lineHeight: 36,
   },
   progressContainer: {
-    width: '80%',
-    marginTop: 40,
+    width: '100%',
+    marginTop: 8,
   },
   progressBarBackground: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 4,
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 3,
     overflow: 'hidden',
+    marginBottom: 12,
   },
   progressBarFill: {
     height: '100%',
     backgroundColor: '#4CAF50',
-    borderRadius: 4,
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#9BA1A6',
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
 });
 

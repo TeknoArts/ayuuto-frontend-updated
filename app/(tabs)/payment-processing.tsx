@@ -114,39 +114,53 @@ export default function PaymentProcessingScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.content}>
-        {/* Confetti Poppers */}
-        <View style={styles.confettiContainer}>
-          <View style={styles.confettiLeft}>
-            <IconSymbol name="party.popper.fill" size={40} color="#FFD700" />
+        {/* Decorative Elements */}
+        <View style={styles.decorativeContainer}>
+          <View style={styles.decorativeLeft}>
+            <IconSymbol name="party.popper.fill" size={32} color="#FFD700" />
           </View>
-          <View style={styles.confettiRight}>
-            <IconSymbol name="party.popper.fill" size={40} color="#FFD700" />
+          <View style={styles.decorativeRight}>
+            <IconSymbol name="party.popper.fill" size={32} color="#FFD700" />
           </View>
         </View>
 
-        {/* Congratulations Text */}
-        <Text style={styles.congratulationsText}>{t('congratulations')}</Text>
-        {recipientName ? (
-          <Text style={styles.recipientText}>{formatParticipantName(recipientName).toUpperCase()}</Text>
-        ) : null}
-        <Text style={styles.roundText}>{t('round')} {roundNumber}</Text>
-        <Text style={styles.amountText}>{t('youAreReceiving')}</Text>
-        <View style={styles.amountContainer}>
-          <IconSymbol name="dollarsign.circle.fill" size={40} color="#FFD700" />
-          <Text style={styles.amountValue}>{amount}</Text>
-        </View>
+        {/* Main Content Card */}
+        <View style={styles.card}>
+          {/* Congratulations Header */}
+          <View style={styles.headerSection}>
+            <Text style={styles.congratulationsText}>
+              {t('congratulations')} {recipientName ? formatParticipantName(recipientName).toUpperCase() : ''}
+            </Text>
+          </View>
 
-        {/* Progress Bar Container */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBarBackground}>
-            <Animated.View
-              style={[
-                styles.progressBarFill,
-                {
-                  width: progressWidth,
-                },
-              ]}
-            />
+          {/* Round Info */}
+          <View style={styles.roundSection}>
+            <Text style={styles.roundLabel}>{t('round')}</Text>
+            <Text style={styles.roundNumber}>{roundNumber}</Text>
+          </View>
+
+          {/* Amount Section */}
+          <View style={styles.amountSection}>
+            <Text style={styles.amountLabel}>{t('youAreReceiving')}</Text>
+            <View style={styles.amountRow}>
+              <IconSymbol name="dollarsign.circle.fill" size={32} color="#FFD700" />
+              <Text style={styles.amountValue}>{amount}</Text>
+            </View>
+          </View>
+
+          {/* Progress Bar */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBarBackground}>
+              <Animated.View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    width: progressWidth,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.progressText}>Processing...</Text>
           </View>
         </View>
       </View>
@@ -157,85 +171,123 @@ export default function PaymentProcessingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'rgba(1, 27, 61, 0.95)',
+    backgroundColor: '#011b3d',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
   },
-  confettiContainer: {
+  decorativeContainer: {
     position: 'absolute',
-    top: '20%',
+    top: '15%',
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 40,
+    paddingHorizontal: 32,
+    zIndex: 0,
   },
-  confettiLeft: {
-    transform: [{ rotate: '-20deg' }],
+  decorativeLeft: {
+    transform: [{ rotate: '-15deg' }],
+    opacity: 0.6,
   },
-  confettiRight: {
-    transform: [{ rotate: '20deg' }],
+  decorativeRight: {
+    transform: [{ rotate: '15deg' }],
+    opacity: 0.6,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: '#002b61',
+    borderRadius: 24,
+    padding: 32,
+    borderWidth: 1,
+    borderColor: '#1a3a5f',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  headerSection: {
+    marginBottom: 24,
+    alignItems: 'center',
   },
   congratulationsText: {
-    fontSize: 48,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontWeight: '700',
     color: '#FFD700',
-    letterSpacing: 3,
-    marginBottom: 10,
+    letterSpacing: 1.5,
     textAlign: 'center',
+    lineHeight: 40,
   },
-  recipientText: {
-    fontSize: 28,
+  roundSection: {
+    alignItems: 'center',
+    marginBottom: 32,
+    paddingBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a3a5f',
+  },
+  roundLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9BA1A6',
+    letterSpacing: 1,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  roundNumber: {
+    fontSize: 48,
     fontWeight: 'bold',
     color: '#FFFFFF',
     letterSpacing: 2,
-    marginBottom: 8,
+  },
+  amountSection: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  amountLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#9BA1A6',
+    letterSpacing: 0.5,
+    marginBottom: 16,
     textAlign: 'center',
   },
-  roundText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#FFD700',
-    letterSpacing: 1.5,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  amountText: {
-    fontSize: 18,
-    color: '#FFFFFF',
-    letterSpacing: 1,
-    marginBottom: 30,
-    textAlign: 'center',
-  },
-  amountContainer: {
+  amountRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 60,
   },
   amountValue: {
-    fontSize: 56,
+    fontSize: 48,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    letterSpacing: 2,
+    letterSpacing: 1,
   },
   progressContainer: {
-    width: '80%',
-    marginTop: 40,
+    width: '100%',
+    marginTop: 8,
   },
   progressBarBackground: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 4,
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 3,
     overflow: 'hidden',
+    marginBottom: 12,
   },
   progressBarFill: {
     height: '100%',
     backgroundColor: '#4CAF50',
-    borderRadius: 4,
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#9BA1A6',
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
 });
 

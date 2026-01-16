@@ -65,6 +65,17 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+// Log API URL for debugging - ALWAYS log to verify URL
+console.log(`[AUTH] 🔍 Configuration Check:`);
+console.log(`[AUTH] USE_PRODUCTION: ${USE_PRODUCTION}`);
+console.log(`[AUTH] Using base URL: ${API_BASE_URL}`);
+if (!USE_PRODUCTION) {
+  console.warn(`[AUTH] ⚠️  WARNING: Using LOCAL development mode! App will only work on same WiFi!`);
+  console.warn(`[AUTH] ⚠️  Set USE_PRODUCTION = true to use Railway (works from anywhere)`);
+} else {
+  console.log(`[AUTH] ✅ Using PRODUCTION mode (Railway) - should work from any WiFi`);
+}
+
 export interface UserData {
   id?: string;
   name?: string;

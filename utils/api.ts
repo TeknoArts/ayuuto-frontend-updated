@@ -36,9 +36,16 @@ const getApiBaseUrl = () => {
 
 export const API_BASE_URL = getApiBaseUrl();
 
-// Log API URL for debugging
-if (__DEV__) {
-  console.log(`[API] Using base URL: ${API_BASE_URL} (Platform: ${Platform.OS}, Physical Device: ${IS_PHYSICAL_DEVICE})`);
+// Log API URL for debugging - ALWAYS log in production to verify URL
+console.log(`[API] 🔍 Configuration Check:`);
+console.log(`[API] USE_PRODUCTION: ${USE_PRODUCTION}`);
+console.log(`[API] Using base URL: ${API_BASE_URL}`);
+console.log(`[API] Platform: ${Platform.OS}, Physical Device: ${IS_PHYSICAL_DEVICE}`);
+if (!USE_PRODUCTION) {
+  console.warn(`[API] ⚠️  WARNING: Using LOCAL development mode! App will only work on same WiFi!`);
+  console.warn(`[API] ⚠️  Set USE_PRODUCTION = true to use Railway (works from anywhere)`);
+} else {
+  console.log(`[API] ✅ Using PRODUCTION mode (Railway) - should work from any WiFi`);
 }
 
 // Fetch with timeout helper
