@@ -391,6 +391,14 @@ export default function GroupDetailsScreen() {
   const currentRecipientPaid =
     sortedParticipants[currentRecipientIndexGlobal]?.isPaid === true;
 
+  // Truncate very long group names so they don't overflow the header
+  const MAX_GROUP_NAME_LENGTH = 40;
+  const rawGroupName = group.name || '';
+  const truncatedGroupName =
+    rawGroupName.length > MAX_GROUP_NAME_LENGTH
+      ? `${rawGroupName.slice(0, MAX_GROUP_NAME_LENGTH - 1)}…`
+      : rawGroupName;
+
   const handleShare = async () => {
     if (!group) {
       alert('Error', 'Group information not available');
@@ -483,7 +491,7 @@ export default function GroupDetailsScreen() {
         {group && (
           <View style={styles.groupNameContainer}>
             <Text style={styles.groupName} numberOfLines={2}>
-              {group.name.toUpperCase()}
+              {truncatedGroupName.toUpperCase()}
             </Text>
           </View>
         )}
@@ -514,7 +522,13 @@ export default function GroupDetailsScreen() {
           <View style={styles.savingsAmountSection}>
             <View style={styles.amountLeft}>
               <IconSymbol name="dollarsign.circle.fill" size={40} color="#FFD700" />
-              <Text style={styles.amountText}>{savingsAmount}</Text>
+              <Text
+                style={styles.amountText}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.5}>
+                {savingsAmount}
+              </Text>
             </View>
             <View style={styles.nextRecipient}>
               <Text style={styles.nextRecipientLabel}>{t('nextRecipient')}</Text>
@@ -526,7 +540,12 @@ export default function GroupDetailsScreen() {
                     ))}
                   </View>
                 ) : nextRecipient ? (
-                  <Text style={styles.nextRecipientName}>{formatParticipantName(nextRecipient).toUpperCase()}</Text>
+                  <Text
+                    style={styles.nextRecipientName}
+                    numberOfLines={1}
+                    ellipsizeMode="tail">
+                    {formatParticipantName(nextRecipient).toUpperCase()}
+                  </Text>
                 ) : (
                   <Text style={styles.questionMarks}>???</Text>
                 )}
@@ -686,12 +705,8 @@ export default function GroupDetailsScreen() {
                 )}
               </View>
             )}
-                    {/* Show PAID OUT tag on the right when group is completed */}
-                    {isGroupCompleted && hasReceivedPayment && (
-                      <View style={styles.paidOutTagInline}>
-                        <Text style={styles.paidOutTextInline}>{t('paidOut')}</Text>
-                      </View>
-                    )}
+                    {/* PAID OUT tag is already shown inline next to the name via hasReceivedPayment.
+                       We avoid rendering a second tag on the right to prevent duplicates when the group completes. */}
                   </View>
                   
           {/* Current Recipient - Show PAY NOW button (only if they haven't received payment before and user can edit) */}
@@ -984,11 +999,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
   },
   amountText: {
+    flex: 1,
     fontSize: 48,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    textAlign: 'left',
   },
   nextRecipient: {
     alignItems: 'flex-end',
