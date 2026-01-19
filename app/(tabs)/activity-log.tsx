@@ -6,6 +6,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useI18n } from '@/utils/i18n';
 import { getUserGroups, type Group } from '@/utils/api';
+import { formatParticipantName } from '@/utils/participant';
 
 interface Activity {
   id: string;
@@ -56,7 +57,7 @@ export default function ActivityLogScreen() {
               type: 'order_set',
               groupId: group.id,
               groupName: group.name,
-              participantName: firstRecipient.name,
+              participantName: formatParticipantName(firstRecipient.name),
               timestamp: new Date(group.createdAt || Date.now()), // Approximate time
               description: `Order was set for "${group.name}"`,
             });
@@ -74,10 +75,10 @@ export default function ActivityLogScreen() {
                 type: 'payment_made',
                 groupId: group.id,
                 groupName: group.name,
-                participantName: participant.name,
+                participantName: formatParticipantName(participant.name),
                 amount: group.amountPerPerson || 0,
                 timestamp: new Date(participant.paidAt),
-                description: `${participant.name} paid $${group.amountPerPerson || 0} in "${group.name}"`,
+                description: `${formatParticipantName(participant.name)} paid $${group.amountPerPerson || 0} in "${group.name}"`,
               });
             }
 
@@ -90,11 +91,11 @@ export default function ActivityLogScreen() {
                 type: 'payment_received',
                 groupId: group.id,
                 groupName: group.name,
-                participantName: participant.name,
+                participantName: formatParticipantName(participant.name),
                 amount: totalSavings,
                 roundNumber,
                 timestamp: new Date(participant.receivedPaymentAt),
-                description: `${participant.name} received $${totalSavings} in Round ${roundNumber} of "${group.name}"`,
+                description: `${formatParticipantName(participant.name)} received $${totalSavings} in Round ${roundNumber} of "${group.name}"`,
               });
             }
           });
@@ -110,10 +111,10 @@ export default function ActivityLogScreen() {
               type: 'round_started',
               groupId: group.id,
               groupName: group.name,
-              participantName: currentRecipient.name,
+              participantName: formatParticipantName(currentRecipient.name),
               roundNumber: group.currentRecipientIndex + 1,
               timestamp: new Date(), // Approximate - would need backend tracking
-              description: `Round ${group.currentRecipientIndex + 1} started - ${currentRecipient.name} is next recipient in "${group.name}"`,
+              description: `Round ${group.currentRecipientIndex + 1} started - ${formatParticipantName(currentRecipient.name)} is next recipient in "${group.name}"`,
             });
           }
         }

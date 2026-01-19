@@ -2,12 +2,24 @@ import { Platform } from 'react-native';
 import { getAuthToken } from './auth';
 
 // Backend API Configuration
-// Set to true if testing on a physical device, false for simulator/emulator
+// ============================================
+// PRODUCTION MODE: Set to true to use Railway server
+// ============================================
+const USE_PRODUCTION = true; // Set to true to use Railway, false for local development
+const PRODUCTION_API_URL = 'https://web-production-40b9d.up.railway.app/api'; // TODO: Replace with your Railway URL
+
+// Local Development Configuration
 const IS_PHYSICAL_DEVICE = true;
-const PHYSICAL_DEVICE_IP = '192.168.18.116'; // Update this to your computer's IP address
+const PHYSICAL_DEVICE_IP = '192.168.18.126'; // Update this to your computer's IP address
 const BACKEND_PORT = 5001;
 
 const getApiBaseUrl = () => {
+  // Use production URL if enabled
+  if (USE_PRODUCTION) {
+    return PRODUCTION_API_URL;
+  }
+  
+  // Local development URLs
   if (Platform.OS === 'web') {
     return `http://localhost:${BACKEND_PORT}/api`;
   } else if (Platform.OS === 'ios') {
@@ -24,9 +36,16 @@ const getApiBaseUrl = () => {
 
 export const API_BASE_URL = getApiBaseUrl();
 
-// Log API URL for debugging
-if (__DEV__) {
-  console.log(`[API] Using base URL: ${API_BASE_URL} (Platform: ${Platform.OS}, Physical Device: ${IS_PHYSICAL_DEVICE})`);
+// Log API URL for debugging - ALWAYS log in production to verify URL
+console.log(`[API] 🔍 Configuration Check:`);
+console.log(`[API] USE_PRODUCTION: ${USE_PRODUCTION}`);
+console.log(`[API] Using base URL: ${API_BASE_URL}`);
+console.log(`[API] Platform: ${Platform.OS}, Physical Device: ${IS_PHYSICAL_DEVICE}`);
+if (!USE_PRODUCTION) {
+  console.warn(`[API] ⚠️  WARNING: Using LOCAL development mode! App will only work on same WiFi!`);
+  console.warn(`[API] ⚠️  Set USE_PRODUCTION = true to use Railway (works from anywhere)`);
+} else {
+  console.log(`[API] ✅ Using PRODUCTION mode (Railway) - should work from any WiFi`);
 }
 
 // Fetch with timeout helper
@@ -93,9 +112,9 @@ export interface Group {
   currentRound?: RoundSummary | null;
   createdAt?: string;
   createdBy?: {
-    id: string;
+    id: string | null;
     name: string;
-  };
+  } | null;
 }
 
 export interface Participant {
@@ -297,6 +316,17 @@ export async function updatePaymentStatus(
 export async function getUserGroups(): Promise<Group[]> {
   try {
     const headers = await getAuthHeaders();
+    const token = await getAuthToken();
+    
+    if (__DEV__) {
+      console.log('[API] Getting user groups');
+      console.log('[API] Token present:', token ? 'Yes' : 'No');
+      if (token) {
+        console.log('[API] Token length:', token.length);
+        console.log('[API] Token preview:', token.substring(0, 20) + '...');
+      }
+    }
+    
     const response = await fetchWithTimeout(
       `${API_BASE_URL}/groups`,
       {
@@ -306,9 +336,67 @@ export async function getUserGroups(): Promise<Group[]> {
       30000 // 30 second timeout
     );
 
-    const json: ApiResponse<{ groups: Group[] }> = await response.json();
+    // Check if response is JSON before parsing
+    let json: ApiResponse<{ groups: Group[] }>;
+    const contentType = response.headers.get('content-type');
+    
+    if (contentType && contentType.includes('application/json')) {
+      json = await response.json();
+    } else {
+      // If not JSON, get text response for debugging
+      const text = await response.text();
+      console.error('[API] Non-JSON response:', text);
+      console.error('[API] Response status:', response.status);
+      console.error('[API] Response URL:', response.url);
+      
+      if (response.status === 404 || text.includes('not found') || text.includes('Application not found')) {
+        throw new Error(`Railway service not found or not running. Please check:\n1. Railway dashboard - is service online?\n2. Service URL: ${API_BASE_URL}\n3. Check Railway deployment logs`);
+      }
+      
+      throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+    }
 
     if (!response.ok || !json.success || !json.data) {
+      // Log full response for debugging
+      console.error('[API] Error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        message: json.message,
+        success: json.success,
+        data: json.data
+      });
+      
+      // Handle Railway-specific errors
+      if (json.message && (json.message.includes('not found') || json.message.includes('Application not found'))) {
+        const errorMsg = `Railway service error: ${json.message}\n\n` +
+          `Troubleshooting:\n` +
+          `1. Check Railway dashboard: https://railway.app\n` +
+          `2. Verify service is online (green dot)\n` +
+          `3. Service URL: ${API_BASE_URL}\n` +
+          `4. Check Railway deployment logs for errors\n` +
+          `5. Try redeploying the service in Railway`;
+        throw new Error(errorMsg);
+      }
+      
+      // If unauthorized, clear token and provide helpful error message
+      if (response.status === 401) {
+        const errorMsg = json.message || 'Not authorized';
+        console.error('[API] Authentication error:', errorMsg);
+        console.error('[API] Token may be expired or invalid. Clearing stored token...');
+        
+        // Clear invalid token
+        try {
+          const { clearAuth } = await import('./auth');
+          await clearAuth();
+          console.log('[API] Cleared invalid auth token');
+        } catch (clearError) {
+          console.error('[API] Error clearing auth:', clearError);
+        }
+        
+        throw new Error(`${errorMsg}. Please log in again.`);
+      }
+      
       throw new Error(json.message || 'Failed to get groups');
     }
 
@@ -439,3 +527,117 @@ export async function getUsers(query?: string): Promise<UserSummary[]> {
   return json.data.users;
 }
 
+// Share Group Link Functions
+export interface ShareLinkData {
+  shareLink: string;
+  shareToken: string;
+  expiresAt: string;
+  shareSettings: {
+    showParticipants: boolean;
+    showPaymentStatus: boolean;
+    showActivityLog: boolean;
+    showAmounts: boolean;
+  };
+}
+
+// Enable sharing and generate share link
+export async function enableGroupSharing(
+  groupId: string,
+  expiresInDays?: number,
+  shareSettings?: {
+    showParticipants?: boolean;
+    showPaymentStatus?: boolean;
+    showActivityLog?: boolean;
+    showAmounts?: boolean;
+  }
+): Promise<ShareLinkData> {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/groups/${groupId}/share/enable`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        expiresInDays: expiresInDays || 90,
+        shareSettings: shareSettings || {
+          showParticipants: true,
+          showPaymentStatus: true,
+          showActivityLog: true,
+          showAmounts: true,
+        },
+      }),
+    }
+  );
+
+  const json: ApiResponse<ShareLinkData> = await response.json();
+
+  if (!response.ok || !json.success || !json.data) {
+    throw new Error(json.message || 'Failed to enable sharing');
+  }
+
+  return json.data;
+}
+
+// Get existing share link
+export async function getGroupShareLink(groupId: string): Promise<ShareLinkData> {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/groups/${groupId}/share`,
+    {
+      method: 'GET',
+      headers,
+    }
+  );
+
+  const json: ApiResponse<ShareLinkData> = await response.json();
+
+  if (!response.ok || !json.success || !json.data) {
+    throw new Error(json.message || 'Failed to get share link');
+  }
+
+  return json.data;
+}
+
+// Disable sharing
+export async function disableGroupSharing(groupId: string): Promise<void> {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/groups/${groupId}/share/disable`,
+    {
+      method: 'POST',
+      headers,
+    }
+  );
+
+  const json: ApiResponse<void> = await response.json();
+
+  if (!response.ok || !json.success) {
+    throw new Error(json.message || 'Failed to disable sharing');
+  }
+}
+
+// Regenerate share token
+export async function regenerateShareToken(
+  groupId: string,
+  expiresInDays?: number
+): Promise<ShareLinkData> {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/groups/${groupId}/share/regenerate`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        expiresInDays: expiresInDays || 90,
+      }),
+    }
+  );
+
+  const json: ApiResponse<ShareLinkData> = await response.json();
+
+  if (!response.ok || !json.success || !json.data) {
+    throw new Error(json.message || 'Failed to regenerate share token');
+  }
+
+  return json.data;
+}

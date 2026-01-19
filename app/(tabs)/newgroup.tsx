@@ -1,11 +1,14 @@
 import { useState, useCallback } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { alert } from '@/utils/alert';
+import { useI18n } from '@/utils/i18n';
 
 export default function NewGroupScreen() {
+  const { t } = useI18n();
   const [groupName, setGroupName] = useState('');
   const [memberCount, setMemberCount] = useState('');
   const [isGroupNameFocused, setIsGroupNameFocused] = useState(false);
@@ -43,10 +46,9 @@ export default function NewGroupScreen() {
     // Validate member count - must be at least 2
     const count = parseInt(memberCount);
     if (count < 2) {
-      Alert.alert(
+      alert(
         'Invalid Member Count',
-        'At least 2 members are required to create a group.',
-        [{ text: 'OK' }]
+        'At least 2 members are required to create a group.'
       );
       return;
     }
@@ -74,18 +76,18 @@ export default function NewGroupScreen() {
               style={styles.backButton}
               onPress={() => router.back()}>
               <IconSymbol name="chevron.left" size={20} color="#61a5fb" />
-              <Text style={styles.backText}>BACK</Text>
+              <Text style={styles.backText}>{t('back')}</Text>
             </TouchableOpacity>
           </View>
 
           {/* Title */}
-          <Text style={styles.title}>NEW GROUP</Text>
+          <Text style={styles.title}>{t('newGroupTitle')}</Text>
 
           {/* Form */}
           <View style={styles.form}>
             {/* Group Name Input */}
             <View style={styles.inputSection}>
-              <Text style={styles.label}>GROUP NAME:</Text>
+              <Text style={styles.label}>{t('groupName')}</Text>
               <View style={[
                 styles.inputContainer,
                 isGroupNameFocused && styles.inputContainerFocused
@@ -106,7 +108,7 @@ export default function NewGroupScreen() {
 
             {/* Member Count Input */}
             <View style={styles.inputSection}>
-              <Text style={styles.label}>MEMBER COUNT:</Text>
+              <Text style={styles.label}>{t('memberCount')}</Text>
               <View style={[
                 styles.inputContainerNoBorder,
                 isMemberCountFocused && styles.inputContainerFocused
@@ -123,10 +125,9 @@ export default function NewGroupScreen() {
                     
                     // Show alert if user enters 1
                     if (numericValue === '1') {
-                      Alert.alert(
-                        'Invalid Member Count',
-                        'At least 2 members are required to create a group.',
-                        [{ text: 'OK' }]
+                      alert(
+                        t('invalidMemberCount'),
+                        t('atLeastTwoMembers')
                       );
                       // Reset to minimum 2
                       setMemberCount('2');
@@ -169,7 +170,7 @@ export default function NewGroupScreen() {
                   styles.nextButtonText,
                   isFormValid && styles.nextButtonTextActive,
                 ]}>
-                NEXT
+                {t('next')}
               </Text>
             </TouchableOpacity>
             </View>

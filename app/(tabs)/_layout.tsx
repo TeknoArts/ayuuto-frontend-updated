@@ -116,6 +116,12 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="group-activity-log"
+          options={{
+            href: null, // Hide from tab bar
+          }}
+        />
+        <Tabs.Screen
           name="manage-participants"
           options={{
             href: null, // Hide from tab bar

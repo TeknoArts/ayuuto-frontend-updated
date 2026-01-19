@@ -1,20 +1,28 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, Share, Linking } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Share, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { LoadingBar } from '@/components/ui/loading-bar';
 import {
   getGroupDetails,
   getGroupLogs,
   spinForOrder,
+  enableGroupSharing,
+  getGroupShareLink,
   type Group,
   type Participant,
   type GroupLogEntry,
 } from '@/utils/api';
 import { getUserData, UserData } from '@/utils/auth';
+import { alert } from '@/utils/alert';
+import { useI18n } from '@/utils/i18n';
+import { formatParticipantName } from '@/utils/participant';
 
 export default function GroupDetailsScreen() {
+  const { t } = useI18n();
   const params = useLocalSearchParams();
   const groupId = params.groupId as string;
   const viewOnly = params.viewOnly === 'true'; // Check if viewing via shared link
@@ -22,10 +30,12 @@ export default function GroupDetailsScreen() {
   const [group, setGroup] = useState<Group | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [user, setUser] = useState<UserData | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [logs, setLogs] = useState<GroupLogEntry[]>([]);
   const [isLogsLoading, setIsLogsLoading] = useState(false);
+  const isLoadingRef = useRef(false);
 
   // Load user data
   useEffect(() => {
@@ -36,14 +46,25 @@ export default function GroupDetailsScreen() {
     loadUser();
   }, []);
 
-  const loadGroupDetails = useCallback(async () => {
+  const loadGroupDetails = useCallback(async (showLoading = false) => {
     if (!groupId) {
       setIsLoading(false);
+      setIsInitialLoad(false);
+      return;
+    }
+
+    // Prevent multiple simultaneous loads
+    if (isLoadingRef.current) {
+      console.log('GroupDetailsScreen: Load already in progress, skipping');
       return;
     }
     
     try {
-      setIsLoading(true);
+      isLoadingRef.current = true;
+      // Only show loading state on initial load or when explicitly requested
+      if (isInitialLoad || showLoading) {
+        setIsLoading(true);
+      }
       setIsLogsLoading(true);
 
       const [groupData, logsData] = await Promise.all([
@@ -56,14 +77,19 @@ export default function GroupDetailsScreen() {
         
         // Check if current user is the owner
         if (user && groupData.createdBy) {
-          const createdById =
-            typeof groupData.createdBy === 'object'
-            ? groupData.createdBy.id 
-            : groupData.createdBy;
-          const userId = user.id;
-          const userIsOwner =
-            createdById?.toString() === userId?.toString() || createdById === userId;
-          setIsOwner(userIsOwner);
+          // Handle null createdBy (deleted user)
+          if (typeof groupData.createdBy === 'object' && (!groupData.createdBy.id || groupData.createdBy.id === null)) {
+            setIsOwner(false);
+          } else {
+            const createdById =
+              typeof groupData.createdBy === 'object'
+              ? groupData.createdBy.id 
+              : groupData.createdBy;
+            const userId = user.id;
+            const userIsOwner =
+              createdById?.toString() === userId?.toString() || createdById === userId;
+            setIsOwner(userIsOwner);
+          }
         }
       }
 
@@ -73,7 +99,7 @@ export default function GroupDetailsScreen() {
     } catch (error: any) {
       console.error('Error loading group details:', error);
       // Show user-friendly error message
-      Alert.alert(
+      alert(
         'Error',
         error?.message || 'Failed to load group details. Please try again.',
         [
@@ -91,32 +117,35 @@ export default function GroupDetailsScreen() {
     } finally {
       setIsLoading(false);
       setIsLogsLoading(false);
+      setIsInitialLoad(false);
+      isLoadingRef.current = false;
     }
-  }, [groupId, user]);
+  }, [groupId, user, isInitialLoad]);
 
   // Track if we just navigated with a refresh param to prevent duplicate reloads
   const refreshHandledRef = useRef<string | null>(null);
 
-  // Force reload when refresh param changes (from loading screens)
+  // Force reload when refresh param changes (from loading screens) - silent reload
   useEffect(() => {
     const refreshParam = params.refresh as string;
     if (refreshParam && groupId && refreshHandledRef.current !== refreshParam) {
-      console.log('GroupDetailsScreen: Refresh param detected, reloading group details');
+      console.log('GroupDetailsScreen: Refresh param detected, reloading group details (silent)');
       refreshHandledRef.current = refreshParam;
       // Small delay to ensure navigation is complete before reloading
       setTimeout(() => {
-        loadGroupDetails();
+        loadGroupDetails(false); // Silent reload
       }, 300);
     }
   }, [params.refresh, groupId, loadGroupDetails]);
 
   useEffect(() => {
     if (groupId) {
-      loadGroupDetails();
+      // Only show loading on initial load when groupId changes
+      loadGroupDetails(true);
     }
   }, [groupId, loadGroupDetails]);
 
-  // Reload when screen comes into focus (useful when navigating back)
+  // Reload when screen comes into focus (useful when navigating back) - silent reload
   // Skip if we just handled a refresh param to avoid duplicate reloads
   useFocusEffect(
     useCallback(() => {
@@ -124,10 +153,10 @@ export default function GroupDetailsScreen() {
         const refreshParam = params.refresh as string;
         // Only reload on focus if there's no refresh param (to avoid duplicate calls)
         if (!refreshParam) {
-          console.log('GroupDetailsScreen: Screen focused, reloading group details');
+          console.log('GroupDetailsScreen: Screen focused, reloading group details (silent)');
           // Add a small delay to ensure previous navigation is complete
           const timer = setTimeout(() => {
-            loadGroupDetails();
+            loadGroupDetails(false); // Silent reload
           }, 200);
           return () => clearTimeout(timer);
         } else {
@@ -154,7 +183,7 @@ export default function GroupDetailsScreen() {
           : participants;
         const currentIndex = updatedGroup.currentRecipientIndex || 0;
         const current = sorted[currentIndex];
-        const nextRecipientName = current?.name || '';
+        const nextRecipientName = formatParticipantName(current?.name || '');
         const roundNumber = (currentIndex + 1).toString();
 
         router.push({
@@ -172,7 +201,7 @@ export default function GroupDetailsScreen() {
       }
     } catch (error: any) {
       console.error('Error spinning for order:', error);
-      Alert.alert(
+      alert(
         'Error',
         error?.message || 'Failed to spin for order. Please try again.'
       );
@@ -184,7 +213,7 @@ export default function GroupDetailsScreen() {
   const handlePaymentToggle = async (participantId: string, currentPaidStatus: boolean) => {
     // Prevent editing if user is not the owner or viewing via shared link
     if (!canEdit) {
-      Alert.alert(
+      alert(
         'View Only',
         'You can only view this group. Only the group owner can make changes.'
       );
@@ -193,7 +222,7 @@ export default function GroupDetailsScreen() {
 
     if (!group || !groupId) {
       console.warn('GroupDetailsScreen: Cannot toggle payment - group or groupId missing');
-      Alert.alert('Error', 'Group information is missing. Please try again.');
+      alert('Error', 'Group information is missing. Please try again.');
       return;
     }
 
@@ -238,7 +267,7 @@ export default function GroupDetailsScreen() {
           ? [...(updatedGroup.participants || [])].sort((a, b) => (a.order || 0) - (b.order || 0))
           : (updatedGroup.participants || []);
         const currentRecipient = sortedParticipants[currentRecipientIndex];
-        const recipientName = currentRecipient?.name || '';
+        const recipientName = formatParticipantName(currentRecipient?.name || '');
         const roundNumber = (currentRecipientIndex + 1).toString();
         
         // Navigate to payment processing screen
@@ -277,7 +306,7 @@ export default function GroupDetailsScreen() {
       }
     } catch (error: any) {
       console.error('Error updating payment status:', error);
-      Alert.alert(
+      alert(
         'Error',
         error?.message || 'Failed to update payment status. Please try again.'
       );
@@ -302,8 +331,9 @@ export default function GroupDetailsScreen() {
   if (isLoading || !group) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <LoadingBar />
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
+          <LoadingSpinner size={48} text="Loading group details..." fullScreen />
         </View>
       </SafeAreaView>
     );
@@ -318,7 +348,10 @@ export default function GroupDetailsScreen() {
   const sortedParticipants = group.isOrderSet
     ? [...participants].sort((a, b) => (a.order || 0) - (b.order || 0))
     : participants;
-  const nextRecipient = group.currentRecipient || null;
+  // Format next recipient name if it's an email
+  const nextRecipient = group.currentRecipient 
+    ? formatParticipantName(group.currentRecipient) 
+    : null;
   const participantsCount = participants.length;
   const isParticipantsComplete =
     (group.memberCount ?? 0) > 0 &&
@@ -359,60 +392,70 @@ export default function GroupDetailsScreen() {
     sortedParticipants[currentRecipientIndexGlobal]?.isPaid === true;
 
   const handleShare = async () => {
-    if (!group) return;
+    if (!group) {
+      alert('Error', 'Group information not available');
+      return;
+    }
+
+    if (!isOwner) {
+      alert('Error', 'Only group admin can share the group link');
+      return;
+    }
 
     try {
-      // Generate shareable link with viewOnly parameter
-      const shareableLink = `ayuuto://group-details?groupId=${groupId}&viewOnly=true`;
-      
-      // Build share message with group details
-      const participantsList = sortedParticipants
-        .map((p, idx) => {
-          const displayName = (p as any).user?.name || p.name;
-          const order = group.isOrderSet && p.order ? `${p.order}. ` : '';
-          const status = p.hasReceivedPayment ? ' (PAID OUT)' : p.isPaid ? ' (PAID)' : ' (UNPAID)';
-          return `${order}${(displayName || '').toUpperCase()}${status}`;
-        })
-        .join('\n');
+      let shareLink: string;
 
-      const currentRecipientInfo = group.isOrderSet && group.currentRecipient
-        ? `\nCurrent Recipient: ${group.currentRecipient.toUpperCase()}`
-        : '';
+      try {
+        // Try to get existing share link
+        console.log('[Share] Attempting to get existing share link for group:', groupId);
+        const shareData = await getGroupShareLink(groupId);
+        shareLink = shareData.shareLink;
+        console.log('[Share] Got existing share link:', shareLink);
+      } catch (error: any) {
+        console.log('[Share] Failed to get share link, error:', error.message);
+        // If sharing not enabled or any error, try to enable it
+        try {
+          console.log('[Share] Attempting to enable sharing for group:', groupId);
+          const shareData = await enableGroupSharing(groupId);
+          shareLink = shareData.shareLink;
+          console.log('[Share] Enabled sharing and got link:', shareLink);
+        } catch (enableError: any) {
+          console.error('[Share] Failed to enable sharing:', enableError);
+          throw new Error(enableError?.message || 'Failed to create share link. Please try again.');
+        }
+      }
 
-      const shareMessage = `AYUUTO GROUP: ${group.name.toUpperCase()}\n\n` +
-        `Total Savings: $${savingsAmount}\n` +
-        `Members: ${group.memberCount}\n` +
-        `Amount per Person: $${group.amountPerPerson || 0}\n` +
-        `Collection Day: ${collectionDay}\n` +
-        `${currentRecipientInfo}\n\n` +
-        `Participants:\n${participantsList}\n\n` +
-        `View Group: ${shareableLink}\n\n` +
+      if (!shareLink) {
+        throw new Error('Share link not generated');
+      }
+
+      // Build share message
+      const shareMessage = `Check out this Ayuuto group: ${group.name}\n\n` +
+        `View the group details: ${shareLink}\n\n` +
         `Shared from Ayuuto App`;
+
+      console.log('[Share] Sharing link:', shareLink);
+
+      // Check if Share API is available
+      if (!Share || typeof Share.share !== 'function') {
+        throw new Error('Share functionality is not available on this device');
+      }
 
       const result = await Share.share({
         message: shareMessage,
         title: `Ayuuto Group: ${group.name}`,
-        url: shareableLink, // For apps that support URL sharing
+        url: shareLink,
       });
 
       if (result.action === Share.sharedAction) {
-        if (result.activityType) {
-          // Shared with activity type of result.activityType
-          console.log('Shared with activity type:', result.activityType);
-        } else {
-          // Shared
-          console.log('Shared successfully');
-        }
+        console.log('[Share] Share link shared successfully');
       } else if (result.action === Share.dismissedAction) {
-        // Dismissed
-        console.log('Share dismissed');
+        console.log('[Share] Share dismissed by user');
       }
     } catch (error: any) {
-      console.error('Error sharing:', error);
-      Alert.alert(
-        'Error',
-        error?.message || 'Failed to share group details. Please try again.'
-      );
+      console.error('[Share] Error sharing:', error);
+      const errorMessage = error?.message || 'Failed to share group link. Please try again.';
+      alert('Error', errorMessage);
     }
   };
 
@@ -436,30 +479,34 @@ export default function GroupDetailsScreen() {
             <IconSymbol name="chevron.left" size={20} color="#61a5fb" />
             <Text style={styles.backText}>HOME</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.scrollButton}>
-            <IconSymbol name="doc.text.fill" size={20} color="#D4A574" />
-          </TouchableOpacity>
         </View>
+        {group && (
+          <View style={styles.groupNameContainer}>
+            <Text style={styles.groupName} numberOfLines={2}>
+              {group.name.toUpperCase()}
+            </Text>
+          </View>
+        )}
 
         {/* Read-Only Banner - Show when viewing via shared link */}
         {viewOnly && (
           <View style={styles.readOnlyBanner}>
             <IconSymbol name="eye.fill" size={16} color="#FFD700" />
-            <Text style={styles.readOnlyText}>VIEW ONLY MODE - You can view but not edit this group</Text>
+            <Text style={styles.readOnlyText}>{t('viewOnlyMode')}</Text>
           </View>
         )}
 
         {/* Savings Card */}
         <View style={styles.savingsCard}>
           <View style={styles.savingsCardHeader}>
-            <Text style={styles.savingsTitle}>SAVINGS</Text>
+            <Text style={styles.savingsTitle}>{t('savings')}</Text>
             {allParticipantsPaidOut ? (
               <View style={styles.completedBadge}>
-                <Text style={styles.completedText}>COMPLETED</Text>
+                <Text style={styles.completedText}>{t('completed')}</Text>
               </View>
             ) : (
               <View style={styles.adminBadge}>
-                <Text style={styles.adminText}>ADMIN</Text>
+                <Text style={styles.adminText}>{t('admin')}</Text>
               </View>
             )}
           </View>
@@ -470,7 +517,7 @@ export default function GroupDetailsScreen() {
               <Text style={styles.amountText}>{savingsAmount}</Text>
             </View>
             <View style={styles.nextRecipient}>
-              <Text style={styles.nextRecipientLabel}>NEXT RECIPIENT</Text>
+              <Text style={styles.nextRecipientLabel}>{t('nextRecipient')}</Text>
               <View style={styles.nextRecipientValue}>
                 {allParticipantsPaidOut ? (
                   <View style={styles.progressIndicator}>
@@ -479,7 +526,7 @@ export default function GroupDetailsScreen() {
                     ))}
                   </View>
                 ) : nextRecipient ? (
-                  <Text style={styles.nextRecipientName}>{nextRecipient.toUpperCase()}</Text>
+                  <Text style={styles.nextRecipientName}>{formatParticipantName(nextRecipient).toUpperCase()}</Text>
                 ) : (
                   <Text style={styles.questionMarks}>???</Text>
                 )}
@@ -488,7 +535,7 @@ export default function GroupDetailsScreen() {
           </View>
 
           <View style={styles.collectionDayContainer}>
-            <Text style={styles.collectionDay}>COLLECTION DAY: {collectionDay}</Text>
+            <Text style={styles.collectionDay}>{t('collectionDay')} {collectionDay}</Text>
           </View>
         </View>
 
@@ -509,7 +556,7 @@ export default function GroupDetailsScreen() {
             }}
             activeOpacity={0.8}>
             <IconSymbol name="person.2.fill" size={20} color="#001a3c" />
-            <Text style={styles.spinButtonText}>MANAGE PARTICIPANTS</Text>
+            <Text style={styles.spinButtonText}>{t('manageParticipants')}</Text>
           </TouchableOpacity>
         )}
 
@@ -521,7 +568,7 @@ export default function GroupDetailsScreen() {
             disabled={isSpinning}>
             <IconSymbol name="dice.fill" size={20} color="#001a3c" />
             <Text style={styles.spinButtonText}>
-              {isSpinning ? 'SPINNING...' : 'SPIN FOR ORDER'}
+              {isSpinning ? t('spinning') : t('spinForOrder')}
             </Text>
           </TouchableOpacity>
         )}
@@ -529,15 +576,15 @@ export default function GroupDetailsScreen() {
         {/* Payment Status Section */}
         <View style={styles.paymentSection}>
           <View style={styles.paymentHeader}>
-            <Text style={styles.paymentTitle}>PAYMENT STATUS</Text>
+            <Text style={styles.paymentTitle}>{t('paymentStatus')}</Text>
             {/* Share button - Only show to owners */}
-            {isOwner && (
+            {isOwner && handleShare && (
               <TouchableOpacity 
                 style={styles.shareButton}
                 onPress={handleShare}
                 activeOpacity={0.8}>
                 <IconSymbol name="square.and.arrow.up" size={16} color="#FFFFFF" />
-                <Text style={styles.shareButtonText}>SHARE</Text>
+                <Text style={styles.shareButtonText}>{t('share') || 'Share'}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -554,7 +601,8 @@ export default function GroupDetailsScreen() {
                 participant.hasReceivedPayment === true ||
                 (isFirst && isPaid);
               
-              const displayName = (participant as any).user?.name || participant.name;
+              const rawName = (participant as any).user?.name || participant.name;
+              const displayName = formatParticipantName(rawName);
               
               // Check if all other participants (excluding the current recipient) have paid
               // Note: Paid-out members still need to pay in subsequent rounds
@@ -596,7 +644,7 @@ export default function GroupDetailsScreen() {
                       {/* Show PAID OUT tag next to name for participants who have received payment */}
                       {hasReceivedPayment && (
                         <View style={styles.paidOutTagInline}>
-                          <Text style={styles.paidOutTextInline}>PAID OUT</Text>
+                          <Text style={styles.paidOutTextInline}>{t('paidOut')}</Text>
                         </View>
                       )}
                     </View>
@@ -607,7 +655,7 @@ export default function GroupDetailsScreen() {
               <View style={styles.paymentStatusContainer}>
                 {isPaid ? (
                   <>
-                    <Text style={styles.paidStatus}>PAID</Text>
+                    <Text style={styles.paidStatus}>{t('paid')}</Text>
                     <TouchableOpacity
                       style={styles.checkboxChecked}
                       onPress={() => participant.id && handlePaymentToggle(participant.id, true)}
@@ -617,7 +665,7 @@ export default function GroupDetailsScreen() {
                   </>
                 ) : (
                   <>
-                    <Text style={styles.paymentStatus}>UNPAID</Text>
+                    <Text style={styles.paymentStatus}>{t('unpaid')}</Text>
                     <TouchableOpacity
                       style={styles.checkbox}
                       onPress={() => participant.id && handlePaymentToggle(participant.id, false)}
@@ -632,16 +680,16 @@ export default function GroupDetailsScreen() {
               (!isGroupCompleted && (!canEdit || currentRecipientPaid)) && (
               <View style={styles.paymentStatusContainer}>
                 {isPaid ? (
-                  <Text style={styles.paidStatus}>PAID</Text>
+                  <Text style={styles.paidStatus}>{t('paid')}</Text>
                 ) : (
-                  <Text style={styles.paymentStatus}>UNPAID</Text>
+                  <Text style={styles.paymentStatus}>{t('unpaid')}</Text>
                 )}
               </View>
             )}
                     {/* Show PAID OUT tag on the right when group is completed */}
                     {isGroupCompleted && hasReceivedPayment && (
                       <View style={styles.paidOutTagInline}>
-                        <Text style={styles.paidOutTextInline}>PAID OUT</Text>
+                        <Text style={styles.paidOutTextInline}>{t('paidOut')}</Text>
                       </View>
                     )}
                   </View>
@@ -652,7 +700,7 @@ export default function GroupDetailsScreen() {
               style={styles.payNowButton}
               onPress={() => participant.id && handlePaymentToggle(participant.id, false)}
               activeOpacity={0.8}>
-              <Text style={styles.payNowButtonText}>PAY NOW</Text>
+              <Text style={styles.payNowButtonText}>{t('payNow')}</Text>
               <IconSymbol name="dollarsign.circle.fill" size={16} color="#FFFFFF" />
             </TouchableOpacity>
           )}
@@ -664,18 +712,34 @@ export default function GroupDetailsScreen() {
 
         {/* Group Activity / Logs */}
         <View style={styles.logsSection}>
-          <Text style={styles.logsTitle}>GROUP ACTIVITY</Text>
+          <View style={styles.logsHeader}>
+            <Text style={styles.logsTitle}>{t('groupActivity')}</Text>
+            {logs.length > 3 && (
+              <TouchableOpacity
+                style={styles.viewMoreButton}
+                onPress={() => {
+                  router.push({
+                    pathname: '/(tabs)/group-activity-log',
+                    params: { groupId, groupName: group.name },
+                  });
+                }}
+                activeOpacity={0.8}>
+                <Text style={styles.viewMoreText}>{t('viewMore')}</Text>
+                <IconSymbol name="chevron.right" size={14} color="#FFD700" />
+              </TouchableOpacity>
+            )}
+          </View>
           {isLogsLoading ? (
             <View style={styles.logsEmptyState}>
-              <Text style={styles.logsEmptyText}>Loading activity...</Text>
+              <LoadingSpinner size={32} text={t('loadingActivity')} />
             </View>
           ) : logs.length === 0 ? (
             <View style={styles.logsEmptyState}>
-              <Text style={styles.logsEmptyText}>No activity yet.</Text>
+              <Text style={styles.logsEmptyText}>{t('noActivityYet')}</Text>
             </View>
           ) : (
             <View style={styles.logsList}>
-              {logs.slice(0, 5).map((log) => {
+              {logs.slice(0, 3).map((log) => {
                 const timestamp = log.paidAt || log.createdAt;
                 const dateLabel = timestamp
                   ? new Date(timestamp).toLocaleString()
@@ -716,8 +780,8 @@ export default function GroupDetailsScreen() {
         {isGroupCompleted && (
           <View style={styles.completionCard}>
             <IconSymbol name="trophy.fill" size={60} color="#FFD700" />
-            <Text style={styles.completionTitle}>AYUUTO COMPLETED</Text>
-            <Text style={styles.completionMessage}>ALL MEMBERS HAVE BEEN PAID OUT SAFELY.</Text>
+            <Text style={styles.completionTitle}>{t('ayuutoCompleted')}</Text>
+            <Text style={styles.completionMessage}>{t('allMembersPaidOut')}</Text>
           </View>
         )}
 
@@ -760,11 +824,11 @@ export default function GroupDetailsScreen() {
                   const recipient = sorted.find(
                     (p) => p.id === updatedGroup.currentRound!.recipientParticipantId
                   );
-                  nextRecipientName = recipient?.name || '';
+                  nextRecipientName = formatParticipantName(recipient?.name || '');
                 } else {
                   const nextIndex = updatedGroup.currentRecipientIndex || 0;
                   const nextRecipient = sorted[nextIndex];
-                  nextRecipientName = nextRecipient?.name || '';
+                  nextRecipientName = formatParticipantName(nextRecipient?.name || '');
                   roundNumber = (nextIndex + 1).toString();
                 }
                   
@@ -789,7 +853,7 @@ export default function GroupDetailsScreen() {
                     });
               } catch (error: any) {
                 console.error('Error starting next round:', error);
-                Alert.alert(
+                alert(
                   'Error',
                   error?.message || 'Failed to start next round. Please try again.'
                 );
@@ -805,7 +869,7 @@ export default function GroupDetailsScreen() {
               }
             }}
             activeOpacity={0.8}>
-            <Text style={styles.nextRoundButtonText}>NEXT ROUND</Text>
+            <Text style={styles.nextRoundButtonText}>{t('nextRound')}</Text>
             <IconSymbol name="party.popper.fill" size={20} color="#001a3c" />
           </TouchableOpacity>
         )}
@@ -848,14 +912,14 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 8,
   },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    flex: 0,
   },
   backText: {
     color: '#61a5fb',
@@ -863,8 +927,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
   },
+  groupNameContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  groupName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFD700',
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
   scrollButton: {
     padding: 8,
+    flex: 0,
   },
   savingsCard: {
     backgroundColor: '#001b3d',
@@ -1202,12 +1279,30 @@ const styles = StyleSheet.create({
   logsSection: {
     marginTop: 24,
   },
+  logsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   logsTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#bc9426',
     letterSpacing: 1,
-    marginBottom: 8,
+  },
+  viewMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  viewMoreText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFD700',
+    letterSpacing: 0.5,
   },
   logsList: {
     marginTop: 4,

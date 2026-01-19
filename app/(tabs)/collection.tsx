@@ -4,16 +4,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useI18n } from '@/utils/i18n';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { LoadingBar } from '@/components/ui/loading-bar';
 
 type Frequency = 'MONTHLY' | 'WEEKLY';
 
 export default function CollectionScreen() {
+  const { t } = useI18n();
   const params = useLocalSearchParams();
   const [amount, setAmount] = useState('');
   const [collectionDate, setCollectionDate] = useState('');
   const [frequency, setFrequency] = useState<Frequency>('MONTHLY');
   const [isAmountFocused, setIsAmountFocused] = useState(false);
   const [isCollectionDateFocused, setIsCollectionDateFocused] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Reset form when screen comes into focus
   useFocusEffect(
@@ -51,11 +56,49 @@ export default function CollectionScreen() {
     setAmount(newValue.toString());
   };
 
+  const handleCollectionDateChange = (value: string) => {
+    // Only allow numeric input
+    const numericValue = value.replace(/[^0-9]/g, '');
+    
+    if (numericValue === '') {
+      setCollectionDate('');
+      return;
+    }
+
+    const numValue = parseInt(numericValue, 10);
+    
+    // Validate based on frequency
+    if (frequency === 'WEEKLY') {
+      // Weekly: 1-7 (Monday-Sunday)
+      if (numValue >= 1 && numValue <= 7) {
+        setCollectionDate(numericValue);
+      } else if (numValue > 7) {
+        // If user types a number > 7, set to 7
+        setCollectionDate('7');
+      }
+    } else {
+      // Monthly: 1-31
+      if (numValue >= 1 && numValue <= 31) {
+        setCollectionDate(numericValue);
+      } else if (numValue > 31) {
+        // If user types a number > 31, set to 31
+        setCollectionDate('31');
+      }
+    }
+  };
+
+  // Clear collection date when frequency changes to prevent invalid values
+  const handleFrequencyChange = (newFrequency: Frequency) => {
+    setFrequency(newFrequency);
+    setCollectionDate(''); // Clear date when frequency changes
+  };
+
   const handleCreate = async () => {
     if (!isFormValid) {
       return;
     }
     try {
+      setIsCreating(true);
       const { createGroup, addParticipants, setCollectionDetails } = await import('@/utils/api');
 
       const existingGroupId = params.groupId as string | undefined;
@@ -75,9 +118,22 @@ export default function CollectionScreen() {
         const participantsParam = params.participants as string | undefined;
         if (participantsParam) {
           try {
-            const userIds: string[] = JSON.parse(participantsParam);
-            if (Array.isArray(userIds) && userIds.length > 0) {
-              const payload = userIds.map((id) => ({ userId: id }));
+            const participantsData = JSON.parse(participantsParam);
+            if (Array.isArray(participantsData) && participantsData.length > 0) {
+              // Handle both old format (array of strings) and new format (array of objects)
+              const payload = participantsData.map((p: any) => {
+                if (typeof p === 'string') {
+                  // Old format: just userId string
+                  return { userId: p };
+                } else {
+                  // New format: object with userId, email, name
+                  return {
+                    userId: p.userId || null,
+                    email: p.email || null,
+                    name: p.name || null,
+                  };
+                }
+              });
               await addParticipants(groupId, payload as any);
             }
           } catch (e) {
@@ -113,7 +169,12 @@ export default function CollectionScreen() {
       });
     } catch (error: any) {
       console.error('Error creating group / setting collection details:', error);
-      // You can add error handling UI here
+      alert(
+        t('error'),
+        error?.message || t('failedToCreate')
+      );
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -133,12 +194,12 @@ export default function CollectionScreen() {
                 style={styles.backButton}
                 onPress={() => router.back()}>
                 <IconSymbol name="chevron.left" size={20} color="#61a5fb" />
-                <Text style={styles.backText}>BACK</Text>
+                <Text style={styles.backText}>{t('back')}</Text>
               </TouchableOpacity>
             </View>
 
             {/* Title */}
-            <Text style={styles.title}>NEW GROUP</Text>
+            <Text style={styles.title}>{t('newGroupTitle')}</Text>
 
             {/* Form */}
             <View style={styles.form}>
@@ -188,40 +249,47 @@ export default function CollectionScreen() {
                     styles.frequencyButton,
                     frequency === 'MONTHLY' && styles.frequencyButtonActive
                   ]}
-                  onPress={() => setFrequency('MONTHLY')}
+                  onPress={() => handleFrequencyChange('MONTHLY')}
                   activeOpacity={0.8}>
-                  <Text style={styles.frequencyButtonText}>MONTHLY</Text>
+                  <Text style={styles.frequencyButtonText}>{t('monthly')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
                     styles.frequencyButton,
                     frequency === 'WEEKLY' && styles.frequencyButtonActive
                   ]}
-                  onPress={() => setFrequency('WEEKLY')}
+                  onPress={() => handleFrequencyChange('WEEKLY')}
                   activeOpacity={0.8}>
-                  <Text style={styles.frequencyButtonText}>WEEKLY</Text>
+                  <Text style={styles.frequencyButtonText}>{t('weekly')}</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Collection Date Section */}
+              {/* Collection Date/Day Section */}
               <View style={styles.inputSection}>
-                <Text style={styles.label}>COLLECTION DATE (1-31)</Text>
+                <Text style={styles.label}>
+                  {frequency === 'WEEKLY' ? `${t('collectionDay')} (1-7)` : `${t('collectionDate')} (1-31)`}
+                </Text>
                 <View style={[
                   styles.inputContainer,
                   isCollectionDateFocused && styles.inputContainerFocused
                 ]}>
                   <TextInput
                     style={styles.input}
-                    placeholder="1-31"
+                    placeholder={frequency === 'WEEKLY' ? '1-7' : '1-31'}
                     placeholderTextColor="#9BA1A6"
                     value={collectionDate}
-                    onChangeText={setCollectionDate}
+                    onChangeText={handleCollectionDateChange}
                     onFocus={() => setIsCollectionDateFocused(true)}
                     onBlur={() => setIsCollectionDateFocused(false)}
                     keyboardType="number-pad"
                     autoCorrect={false}
                   />
                 </View>
+                {frequency === 'WEEKLY' && (
+                  <Text style={styles.helperText}>
+                    1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday, 5 = Friday, 6 = Saturday, 7 = Sunday
+                  </Text>
+                )}
               </View>
 
               {/* Create Button */}
@@ -232,8 +300,15 @@ export default function CollectionScreen() {
                 ]}
                 onPress={handleCreate}
                 activeOpacity={0.8}
-                disabled={!isFormValid}>
-                <Text style={styles.createButtonText}>CREATE & CELEBRATE!</Text>
+                disabled={!isFormValid || isCreating}>
+                {isCreating ? (
+                  <View style={styles.createButtonLoading}>
+                    <LoadingSpinner size={20} color="#FFFFFF" />
+                    <Text style={styles.createButtonText}>Creating...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.createButtonText}>{t('create')} & {t('celebrate')}!</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -383,6 +458,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingVertical: 16,
   },
+  helperText: {
+    fontSize: 12,
+    color: '#9BA1A6',
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
   createButton: {
     backgroundColor: '#152b45',
     borderRadius: 12,
@@ -402,6 +483,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     letterSpacing: 1.5,
+  },
+  createButtonLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
 });
 

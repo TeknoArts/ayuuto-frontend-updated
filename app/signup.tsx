@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { registerUser, saveAuthToken, saveUserData } from '@/utils/auth';
+import { alert } from '@/utils/alert';
+import { useI18n } from '@/utils/i18n';
 
 export default function SignUpScreen() {
   const [name, setName] = useState('');
@@ -14,22 +16,26 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const handleSignUp = async () => {
     if (!name || !email || !password || !confirmPassword) {
-      setError('Please fill in all required fields.');
+      alert(
+        t('missingInformation'),
+        t('pleaseFillAllFields')
+      );
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      alert(
+        t('passwordMismatch'),
+        t('passwordsDoNotMatch')
+      );
       return;
     }
 
     try {
       setIsLoading(true);
-      setError(null);
 
       const { user, token } = await registerUser({
         name,
@@ -55,7 +61,10 @@ export default function SignUpScreen() {
 
       router.replace('/(tabs)');
     } catch (err: any) {
-      setError(err?.message || 'Unable to sign up. Please try again.');
+      alert(
+        t('signUpFailed'),
+        err?.message || t('unableToSignUp')
+      );
     } finally {
       setIsLoading(false);
     }
@@ -79,8 +88,6 @@ export default function SignUpScreen() {
           <View style={styles.formContainer}>
             <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>Join Ayuuto to get started</Text>
-
-            {error && <Text style={styles.errorText}>{error}</Text>}
 
             {/* Name Input */}
             <View style={styles.inputContainer}>
@@ -295,10 +302,6 @@ const styles = StyleSheet.create({
     color: '#FFD700',
     fontSize: 14,
     fontWeight: 'bold',
-  },
-  errorText: {
-    color: '#FF6B6B',
-    marginBottom: 16,
   },
 });
 
