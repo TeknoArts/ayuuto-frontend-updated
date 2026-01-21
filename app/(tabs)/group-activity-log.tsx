@@ -159,7 +159,7 @@ export default function GroupActivityLogScreen() {
                     <View style={styles.logTextContainer}>
                       <Text style={styles.logMainText}>
                         {log.participantName
-                          ? `${formatParticipantName(log.participantName)} paid`
+                          ? `${log.participantName.includes('@') ? log.participantName : formatParticipantName(log.participantName)} paid`
                           : 'Payment recorded'}
                         {typeof log.roundNumber === 'number'
                           ? ` • Round ${log.roundNumber}`
