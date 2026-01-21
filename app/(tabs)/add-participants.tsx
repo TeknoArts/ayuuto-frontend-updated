@@ -17,13 +17,11 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { getUsers, type UserSummary } from '@/utils/api';
 import { alert } from '@/utils/alert';
 import { formatParticipantName } from '@/utils/participant';
 
 type ParticipantInput = {
   label: string;
-  selectedUserId?: string | null;
   email?: string | null;
 };
 
@@ -33,10 +31,7 @@ export default function AddParticipantsScreen() {
   
   const [participants, setParticipants] = useState<ParticipantInput[]>([]);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
-  const [availableUsers, setAvailableUsers] = useState<UserSummary[]>([]);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [openSlotIndex, setOpenSlotIndex] = useState<number | null>(null);
-  const [userSearchQuery, setUserSearchQuery] = useState('');
   const [emailInput, setEmailInput] = useState('');
   
   // Reset form when screen comes into focus
@@ -55,56 +50,13 @@ export default function AddParticipantsScreen() {
     }
   }, []);
 
-  // Load available users for dropdown
-  useEffect(() => {
-    let isMounted = true;
-    const load = async () => {
-      try {
-        setIsLoadingUsers(true);
-        const users = await getUsers();
-        if (isMounted) {
-          setAvailableUsers(users);
-        }
-      } catch (error: any) {
-        console.error('Error loading users for participant dropdown:', error);
-        // Only show error if modal is open (user is actively trying to select)
-        if (openSlotIndex !== null) {
-          alert(
-            'Error',
-            error?.message || 'Failed to load users. Please try again.'
-          );
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingUsers(false);
-        }
-      }
-    };
-    load();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
   
   const totalParticipants = memberCount;
 
-  const filledCount = participants.filter((p) => p.selectedUserId || p.email).length;
+  const filledCount = participants.filter((p) => p.email).length;
   // Allow progressing even if not all participants are selected.
   // You can even skip participants entirely and manage them later.
   const isFormValid = true;
-
-  const handleSelectUserForIndex = (index: number, user: UserSummary) => {
-    const newParticipants = [...participants];
-    newParticipants[index] = {
-      label: user.name || user.email,
-      selectedUserId: user.id,
-      email: null, // Clear email when selecting registered user
-    };
-    setParticipants(newParticipants);
-    setOpenSlotIndex(null);
-    setUserSearchQuery('');
-    setEmailInput('');
-  };
 
   const handleAddByEmail = (index: number) => {
     const trimmedEmail = emailInput.trim().toLowerCase();
@@ -116,18 +68,7 @@ export default function AddParticipantsScreen() {
       return;
     }
 
-    // Check if email belongs to a registered user
-    const existingUser = availableUsers.find(
-      (u) => u.email && u.email.toLowerCase() === trimmedEmail
-    );
-
-    if (existingUser) {
-      // If user exists, add them as registered user
-      handleSelectUserForIndex(index, existingUser);
-      return;
-    }
-
-    // Add as non-registered participant with email
+    // Add as participant with email only
     const newParticipants = [...participants];
     newParticipants[index] = {
       label: trimmedEmail,
@@ -136,7 +77,6 @@ export default function AddParticipantsScreen() {
     };
     setParticipants(newParticipants);
     setOpenSlotIndex(null);
-    setUserSearchQuery('');
     setEmailInput('');
   };
 
@@ -147,11 +87,11 @@ export default function AddParticipantsScreen() {
 
     const groupName = (params.groupName as string) || 'Ayuuto Group';
     
-    // Prepare participants data with both userIds and emails
+    // Prepare participants data with emails only
     const participantsData = participants
-      .filter((p) => p.selectedUserId || p.email)
+      .filter((p) => p.email)
       .map((p) => ({
-        userId: p.selectedUserId || null,
+        userId: null,
         email: p.email || null,
         name: p.label || p.email || 'Participant',
       }));
@@ -222,22 +162,22 @@ export default function AddParticipantsScreen() {
                         </View>
                         <View style={styles.slotTextContainer}>
                           <Text style={styles.slotTitle}>
-                            {participant.selectedUserId || participant.email 
+                            {participant.email 
                               ? formatParticipantName(participant.label) 
                               : 'Empty slot'}
                           </Text>
-                          {!participant.selectedUserId && !participant.email && (
-                            <Text style={styles.slotSubtitle}>Tap to select a user or add by email</Text>
+                          {!participant.email && (
+                            <Text style={styles.slotSubtitle}>Tap to add participant by email</Text>
                           )}
-                          {participant.email && !participant.selectedUserId && (
+                          {participant.email && (
                             <Text style={styles.slotSubtitle}>{formatParticipantName(participant.email)}</Text>
                           )}
                         </View>
                         <View style={styles.slotIconContainer}>
                           <IconSymbol
-                            name={participant.selectedUserId ? 'person.fill' : participant.email ? 'envelope.fill' : 'plus.circle.fill'}
+                            name={participant.email ? 'envelope.fill' : 'plus.circle.fill'}
                             size={24}
-                            color={participant.selectedUserId ? '#4CAF50' : participant.email ? '#61a5fb' : '#FFD700'}
+                            color={participant.email ? '#61a5fb' : '#FFD700'}
                           />
                         </View>
                       </View>
@@ -274,7 +214,6 @@ export default function AddParticipantsScreen() {
         transparent
         onRequestClose={() => {
           setOpenSlotIndex(null);
-          setUserSearchQuery('');
           setEmailInput('');
         }}>
         <KeyboardAvoidingView
@@ -285,18 +224,16 @@ export default function AddParticipantsScreen() {
             onPress={() => {
               Keyboard.dismiss();
               setOpenSlotIndex(null);
-              setUserSearchQuery('');
               setEmailInput('');
             }}>
             <View style={styles.modalOverlayInner}>
               <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
                 <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Select participant</Text>
+                  <Text style={styles.modalTitle}>Invite participant</Text>
                   <TouchableOpacity
                     onPress={() => {
                       setOpenSlotIndex(null);
-                      setUserSearchQuery('');
                       setEmailInput('');
                     }}>
                     <IconSymbol name="xmark.circle.fill" size={22} color="#9BA1A6" />
@@ -316,6 +253,11 @@ export default function AddParticipantsScreen() {
                       autoCapitalize="none"
                       autoCorrect={false}
                       keyboardType="email-address"
+                      onSubmitEditing={() => {
+                        if (openSlotIndex !== null && emailInput.trim().length > 0) {
+                          handleAddByEmail(openSlotIndex);
+                        }
+                      }}
                     />
                   </View>
                   <TouchableOpacity
@@ -337,64 +279,6 @@ export default function AddParticipantsScreen() {
                     />
                   </TouchableOpacity>
                 </View>
-
-                <View style={styles.divider}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>OR</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-
-                <View style={styles.dropdownSearchContainer}>
-                  <IconSymbol name="magnifyingglass" size={14} color="#9BA1A6" />
-                  <TextInput
-                    style={styles.dropdownSearchInput}
-                    placeholder="Search users by name or email"
-                    placeholderTextColor="#9BA1A6"
-                    value={userSearchQuery}
-                    onChangeText={setUserSearchQuery}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
-
-                {isLoadingUsers ? (
-                  <View style={styles.dropdownLoadingContainer}>
-                    <LoadingSpinner size={32} text="Loading users..." />
-                  </View>
-                ) : (() => {
-                  const q = userSearchQuery.trim().toLowerCase();
-                  const filtered =
-                    q.length === 0
-                      ? availableUsers
-                      : availableUsers.filter(
-                          (u) =>
-                            (u.name && u.name.toLowerCase().includes(q)) ||
-                            (u.email && u.email.toLowerCase().includes(q))
-                        );
-                  if (filtered.length === 0) {
-                    return (
-                      <Text style={styles.dropdownEmptyText}>No users match your search.</Text>
-                    );
-                  }
-                  return (
-                    <ScrollView style={styles.dropdownList} keyboardShouldPersistTaps="handled">
-                      {filtered.map((user) => (
-                        <TouchableOpacity
-                          key={user.id}
-                          style={styles.dropdownItem}
-                          onPress={() => {
-                            if (openSlotIndex !== null) {
-                              handleSelectUserForIndex(openSlotIndex, user);
-                            }
-                          }}
-                          activeOpacity={0.7}>
-                          <Text style={styles.dropdownItemName}>{user.name || user.email}</Text>
-                          <Text style={styles.dropdownItemEmail}>{user.email}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  );
-                })()}
                 </View>
               </TouchableWithoutFeedback>
             </View>

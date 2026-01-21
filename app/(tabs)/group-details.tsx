@@ -500,13 +500,9 @@ export default function GroupDetailsScreen() {
         <View style={styles.savingsCard}>
           <View style={styles.savingsCardHeader}>
             <Text style={styles.savingsTitle}>{t('savings')}</Text>
-            {allParticipantsPaidOut ? (
+            {allParticipantsPaidOut && (
               <View style={styles.completedBadge}>
                 <Text style={styles.completedText}>{t('completed')}</Text>
-              </View>
-            ) : (
-              <View style={styles.adminBadge}>
-                <Text style={styles.adminText}>{t('admin')}</Text>
               </View>
             )}
           </View>
@@ -641,8 +637,8 @@ export default function GroupDetailsScreen() {
                         </View>
                       )}
                       <Text style={styles.participantName}>{(displayName || '').toUpperCase()}</Text>
-                      {/* Show PAID OUT tag next to name for participants who have received payment */}
-                      {hasReceivedPayment && (
+                      {/* Show PAID OUT tag next to name for participants who have received payment (only when group is NOT completed) */}
+                      {hasReceivedPayment && !isGroupCompleted && (
                         <View style={styles.paidOutTagInline}>
                           <Text style={styles.paidOutTextInline}>{t('paidOut')}</Text>
                         </View>
@@ -686,7 +682,7 @@ export default function GroupDetailsScreen() {
                 )}
               </View>
             )}
-                    {/* Show PAID OUT tag on the right when group is completed */}
+                    {/* Show PAID OUT tag on the right when group is completed (only one badge when completed) */}
                     {isGroupCompleted && hasReceivedPayment && (
                       <View style={styles.paidOutTagInline}>
                         <Text style={styles.paidOutTextInline}>{t('paidOut')}</Text>
@@ -709,81 +705,6 @@ export default function GroupDetailsScreen() {
             })}
           </View>
         </View>
-
-        {/* Group Activity / Logs */}
-        <View style={styles.logsSection}>
-          <View style={styles.logsHeader}>
-            <Text style={styles.logsTitle}>{t('groupActivity')}</Text>
-            {logs.length > 3 && (
-              <TouchableOpacity
-                style={styles.viewMoreButton}
-                onPress={() => {
-                  router.push({
-                    pathname: '/(tabs)/group-activity-log',
-                    params: { groupId, groupName: group.name },
-                  });
-                }}
-                activeOpacity={0.8}>
-                <Text style={styles.viewMoreText}>{t('viewMore')}</Text>
-                <IconSymbol name="chevron.right" size={14} color="#FFD700" />
-              </TouchableOpacity>
-            )}
-          </View>
-          {isLogsLoading ? (
-            <View style={styles.logsEmptyState}>
-              <LoadingSpinner size={32} text={t('loadingActivity')} />
-            </View>
-          ) : logs.length === 0 ? (
-            <View style={styles.logsEmptyState}>
-              <Text style={styles.logsEmptyText}>{t('noActivityYet')}</Text>
-            </View>
-          ) : (
-            <View style={styles.logsList}>
-              {logs.slice(0, 3).map((log) => {
-                const timestamp = log.paidAt || log.createdAt;
-                const dateLabel = timestamp
-                  ? new Date(timestamp).toLocaleString()
-                  : '';
-                return (
-                  <View key={log.id} style={styles.logItem}>
-                    <View style={styles.logLeft}>
-                      <View style={styles.logIcon}>
-                        <IconSymbol
-                          name="checkmark.circle.fill"
-                          size={18}
-                          color="#4CAF50"
-                        />
-                      </View>
-                      <View style={styles.logTextContainer}>
-                        <Text style={styles.logMainText}>
-                          {log.participantName
-                            ? `${log.participantName} paid`
-                            : 'Payment recorded'}
-                          {typeof log.roundNumber === 'number'
-                            ? ` • Round ${log.roundNumber}`
-                            : ''}
-                        </Text>
-                        {typeof log.amount === 'number' && log.amount > 0 && (
-                          <Text style={styles.logSubText}>Amount: ${log.amount}</Text>
-                        )}
-                      </View>
-                    </View>
-                    <Text style={styles.logTimeText}>{dateLabel}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
-
-        {/* Completion Card - Show when Ayuuto is completed */}
-        {isGroupCompleted && (
-          <View style={styles.completionCard}>
-            <IconSymbol name="trophy.fill" size={60} color="#FFD700" />
-            <Text style={styles.completionTitle}>{t('ayuutoCompleted')}</Text>
-            <Text style={styles.completionMessage}>{t('allMembersPaidOut')}</Text>
-          </View>
-        )}
 
         {/* NEXT ROUND Button - Show when current recipient has paid and group is not completed and user can edit */}
         {group.isOrderSet && !isGroupCompleted && canEdit && (() => {
@@ -873,6 +794,81 @@ export default function GroupDetailsScreen() {
             <IconSymbol name="party.popper.fill" size={20} color="#001a3c" />
           </TouchableOpacity>
         )}
+
+        {/* Completion Card - Show when Ayuuto is completed */}
+        {isGroupCompleted && (
+          <View style={styles.completionCard}>
+            <IconSymbol name="trophy.fill" size={60} color="#FFD700" />
+            <Text style={styles.completionTitle}>{t('ayuutoCompleted')}</Text>
+            <Text style={styles.completionMessage}>{t('allMembersPaidOut')}</Text>
+          </View>
+        )}
+
+        {/* Group Activity / Logs */}
+        <View style={styles.logsSection}>
+          <View style={styles.logsHeader}>
+            <Text style={styles.logsTitle}>{t('groupActivity')}</Text>
+            {logs.length > 3 && (
+              <TouchableOpacity
+                style={styles.viewMoreButton}
+                onPress={() => {
+                  router.push({
+                    pathname: '/(tabs)/group-activity-log',
+                    params: { groupId, groupName: group.name },
+                  });
+                }}
+                activeOpacity={0.8}>
+                <Text style={styles.viewMoreText}>{t('viewMore')}</Text>
+                <IconSymbol name="chevron.right" size={14} color="#FFD700" />
+              </TouchableOpacity>
+            )}
+          </View>
+          {isLogsLoading ? (
+            <View style={styles.logsEmptyState}>
+              <LoadingSpinner size={32} text={t('loadingActivity')} />
+            </View>
+          ) : logs.length === 0 ? (
+            <View style={styles.logsEmptyState}>
+              <Text style={styles.logsEmptyText}>{t('noActivityYet')}</Text>
+            </View>
+          ) : (
+            <View style={styles.logsList}>
+              {logs.slice(0, 3).map((log) => {
+                const timestamp = log.paidAt || log.createdAt;
+                const dateLabel = timestamp
+                  ? new Date(timestamp).toLocaleString()
+                  : '';
+                return (
+                  <View key={log.id} style={styles.logItem}>
+                    <View style={styles.logLeft}>
+                      <View style={styles.logIcon}>
+                        <IconSymbol
+                          name="checkmark.circle.fill"
+                          size={18}
+                          color="#4CAF50"
+                        />
+                      </View>
+                      <View style={styles.logTextContainer}>
+                        <Text style={styles.logMainText}>
+                          {log.participantName
+                            ? `${log.participantName} paid`
+                            : 'Payment recorded'}
+                          {typeof log.roundNumber === 'number'
+                            ? ` • Round ${log.roundNumber}`
+                            : ''}
+                        </Text>
+                        {typeof log.amount === 'number' && log.amount > 0 && (
+                          <Text style={styles.logSubText}>Amount: ${log.amount}</Text>
+                        )}
+                      </View>
+                    </View>
+                    <Text style={styles.logTimeText}>{dateLabel}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

@@ -1,6 +1,16 @@
 import { Platform } from 'react-native';
 import { getAuthToken } from './auth';
 
+// Helper function to validate MongoDB ObjectId format
+// ObjectIds are 24-character hexadecimal strings
+function isValidObjectId(id: string | null | undefined): boolean {
+  if (!id || typeof id !== 'string') {
+    return false;
+  }
+  // MongoDB ObjectId is exactly 24 hex characters
+  return /^[0-9a-fA-F]{24}$/.test(id);
+}
+
 // Backend API Configuration
 // ============================================
 // PRODUCTION MODE: Set to true to use Railway server
@@ -249,6 +259,11 @@ export async function setCollectionDetails(
 
 // Get Group Details
 export async function getGroupDetails(groupId: string): Promise<Group> {
+  // Validate groupId format before making API call
+  if (!isValidObjectId(groupId)) {
+    throw new Error('Invalid group ID format');
+  }
+
   const headers = await getAuthHeaders();
   const response = await fetchWithTimeout(
     `${API_BASE_URL}/groups/${groupId}`,
@@ -453,6 +468,11 @@ export async function sendTestNotification(title?: string, body?: string, data?:
 
 // Delete Group
 export async function deleteGroup(groupId: string): Promise<void> {
+  // Validate groupId format before making API call
+  if (!isValidObjectId(groupId)) {
+    throw new Error('Invalid group ID format');
+  }
+
   const headers = await getAuthHeaders();
   const response = await fetchWithTimeout(`${API_BASE_URL}/groups/${groupId}`, {
     method: 'DELETE',
@@ -468,6 +488,11 @@ export async function deleteGroup(groupId: string): Promise<void> {
 
 // Next Round - Move to next recipient
 export async function nextRound(groupId: string): Promise<Group> {
+  // Validate groupId format before making API call
+  if (!isValidObjectId(groupId)) {
+    throw new Error('Invalid group ID format');
+  }
+
   const headers = await getAuthHeaders();
   const response = await fetchWithTimeout(
     `${API_BASE_URL}/groups/${groupId}/next-round`,
@@ -488,6 +513,11 @@ export async function nextRound(groupId: string): Promise<Group> {
 
 // Get Group Logs (payment history per group)
 export async function getGroupLogs(groupId: string): Promise<GroupLogEntry[]> {
+  // Validate groupId format before making API call
+  if (!isValidObjectId(groupId)) {
+    throw new Error('Invalid group ID format');
+  }
+
   const headers = await getAuthHeaders();
   const response = await fetchWithTimeout(
     `${API_BASE_URL}/groups/${groupId}/logs`,

@@ -28,6 +28,11 @@ const MAPPING = {
   'eye.slash.fill': 'visibility-off',
   'person.fill': 'person',
   'phone.fill': 'phone',
+  'party.popper.fill': 'celebration',
+  'arrow.clockwise': 'refresh',
+  'checkmark.circle.fill': 'check-circle',
+  'trash.fill': 'delete',
+  'chevron.left': 'chevron-left',
 } as IconMapping;
 
 /**

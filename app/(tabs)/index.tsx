@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, FlatList, Animated, Easing } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, FlatList, Animated, Easing, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { LoadingBar } from '@/components/ui/loading-bar';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { getUserData, UserData } from '@/utils/auth';
 import { getUserGroups, deleteGroup, type Group } from '@/utils/api';
 import { useI18n } from '@/utils/i18n';
@@ -17,6 +19,7 @@ export default function HomeScreen() {
   const [joinedGroups, setJoinedGroups] = useState<Group[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const isLoadingRef = useRef(false);
 
@@ -284,6 +287,18 @@ export default function HomeScreen() {
     setUser(storedUser);
   }, []);
 
+  const onRefresh = useCallback(async () => {
+    console.log('HomeScreen: Pull to refresh triggered');
+    setRefreshing(true);
+    try {
+      await loadGroups(true);
+    } catch (error) {
+      console.error('HomeScreen: Error refreshing groups:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadGroups]);
+
   useEffect(() => {
     loadUser();
   }, [loadUser]);
@@ -411,41 +426,38 @@ export default function HomeScreen() {
 
   const displayName = user?.name || user?.email || 'Friend';
 
-  // Loading skeleton component
+  // Enhanced loading skeleton component with shimmer effect
   const LoadingSkeleton = () => {
     const shimmerAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
       const shimmer = Animated.loop(
-        Animated.sequence([
-          Animated.timing(shimmerAnim, {
-            toValue: 1,
-            duration: 1500,
-            easing: Easing.linear,
-            useNativeDriver: true,
-          }),
-          Animated.timing(shimmerAnim, {
-            toValue: 0,
-            duration: 1500,
-            easing: Easing.linear,
-            useNativeDriver: true,
-          }),
-        ])
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 2000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
       );
       shimmer.start();
       return () => shimmer.stop();
     }, []);
 
-    const opacity = shimmerAnim.interpolate({
+    const translateX = shimmerAnim.interpolate({
       inputRange: [0, 1],
-      outputRange: [0.3, 0.7],
+      outputRange: [-200, 200],
+    });
+
+    const opacity = shimmerAnim.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [0.2, 0.5, 0.2],
     });
 
     return (
       <View style={styles.loadingContainer}>
         {[1, 2, 3].map((i) => (
           <View key={i} style={styles.skeletonCard}>
-            <Animated.View style={[styles.skeletonContent, { opacity }]}>
+            <View style={styles.skeletonContent}>
               <View style={styles.skeletonHeader}>
                 <View style={[styles.skeletonLine, styles.skeletonTitle]} />
                 <View style={[styles.skeletonLine, styles.skeletonIcon]} />
@@ -453,7 +465,17 @@ export default function HomeScreen() {
               <View style={styles.skeletonDetails}>
                 <View style={[styles.skeletonLine, styles.skeletonDetail]} />
               </View>
-            </Animated.View>
+              {/* Shimmer overlay */}
+              <Animated.View
+                style={[
+                  styles.shimmerOverlay,
+                  {
+                    transform: [{ translateX }],
+                    opacity,
+                  },
+                ]}
+              />
+            </View>
           </View>
         ))}
       </View>
@@ -494,7 +516,20 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      {/* Loading Bar at Top */}
+      {isLoading && isInitialLoad && <LoadingBar height={3} color="#FFD700" />}
+      
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#FFD700"
+            colors={['#FFD700']}
+          />
+        }>
         {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -892,6 +927,15 @@ const styles = StyleSheet.create({
   skeletonDetail: {
     width: '40%',
     height: 14,
+  },
+  shimmerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 215, 0, 0.3)',
+    width: '50%',
   },
   loadingSpinnerContainer: {
     alignItems: 'center',

@@ -25,7 +25,6 @@ import {
   removeParticipant,
   type Group,
   type Participant,
-  type UserSummary,
 } from '@/utils/api';
 import { getUserData } from '@/utils/auth';
 import { alert } from '@/utils/alert';
@@ -41,11 +40,10 @@ export default function ManageParticipantsScreen() {
 
   const [group, setGroup] = useState<Group | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const [availableUsers, setAvailableUsers] = useState<UserSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [userSearchQuery, setUserSearchQuery] = useState('');
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   const loadGroup = useCallback(async () => {
     if (!groupId) return;
@@ -68,65 +66,30 @@ export default function ManageParticipantsScreen() {
     loadGroup();
   }, [loadGroup]);
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadUsers = async () => {
-      try {
-        const users = await getUserGroups(); // reuse API to get users from existing groups
-        if (!isMounted) return;
-        // Flatten unique users from createdBy and participants
-        const map = new Map<string, UserSummary>();
-        users.forEach((g) => {
-          if (g.createdBy && typeof g.createdBy === 'object' && g.createdBy.id && g.createdBy.id !== null) {
-            map.set(g.createdBy.id, {
-              id: g.createdBy.id,
-              name: g.createdBy.name || 'Deleted User',
-              email: '',
-            });
-          }
-          (g.participants || []).forEach((p) => {
-            if (p.userId) {
-              const key = p.userId;
-              if (!map.has(key)) {
-                map.set(key, {
-                  id: key,
-                  name: (p.user && p.user.name) || p.name || '',
-                  email: p.user?.email,
-                });
-              }
-            }
-          });
-        });
-        setAvailableUsers(Array.from(map.values()));
-      } catch (error: any) {
-        console.error('Error loading users for manage-participants:', error);
-        // Only show error if modal is open (user is actively trying to add participant)
-        if (isUserModalOpen) {
-          alert(
-            t('error'),
-            error?.message || t('failedToLoadUsers')
-          );
-        }
-      }
-    };
-    loadUsers();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
-  const handleAddParticipant = async (user: UserSummary) => {
+  const handleAddParticipantByEmail = async () => {
     if (!groupId || !group) return;
+    
+    const trimmedEmail = emailInput.trim().toLowerCase();
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      alert('Invalid Email', 'Please enter a valid email address.');
+      return;
+    }
+    
     if (group.participants && group.participants.length >= (group.memberCount || 0)) {
       alert(t('limitReached'), t('allSlotsFilledMessage'));
       return;
     }
+    
     try {
       setIsSaving(true);
-      await addParticipants(groupId, [{ userId: user.id }]);
+      await addParticipants(groupId, [{ email: trimmedEmail, name: trimmedEmail }]);
       await loadGroup();
-      setUserSearchQuery('');
-      setIsUserModalOpen(false);
+      setEmailInput('');
+      setIsEmailModalOpen(false);
     } catch (error: any) {
       console.error('Error adding participant:', error);
       alert(t('error'), error?.message || t('failedToAdd'));
@@ -258,7 +221,7 @@ export default function ManageParticipantsScreen() {
             </Text>
             <TouchableOpacity
               style={styles.addButton}
-              onPress={() => setIsUserModalOpen(true)}
+              onPress={() => setIsEmailModalOpen(true)}
               activeOpacity={0.8}
               disabled={remainingSlots <= 0 || isSaving}>
               <IconSymbol name="person.badge.plus" size={18} color="#001a3c" />
@@ -284,14 +247,14 @@ export default function ManageParticipantsScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
-      {/* User selection modal */}
+      {/* Email input modal */}
       <Modal
-        visible={isUserModalOpen}
+        visible={isEmailModalOpen}
         animationType="slide"
         transparent
         onRequestClose={() => {
-          setIsUserModalOpen(false);
-          setUserSearchQuery('');
+          setIsEmailModalOpen(false);
+          setEmailInput('');
         }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -300,66 +263,58 @@ export default function ManageParticipantsScreen() {
           <TouchableWithoutFeedback
             onPress={() => {
               Keyboard.dismiss();
-              setIsUserModalOpen(false);
-              setUserSearchQuery('');
+              setIsEmailModalOpen(false);
+              setEmailInput('');
             }}>
             <View style={styles.modalOverlayInner}>
               <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
                 <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Select participant</Text>
+                  <Text style={styles.modalTitle}>Invite participant</Text>
                   <TouchableOpacity
                     onPress={() => {
-                      setIsUserModalOpen(false);
-                      setUserSearchQuery('');
+                      setIsEmailModalOpen(false);
+                      setEmailInput('');
                     }}>
                     <IconSymbol name="xmark.circle.fill" size={22} color="#9BA1A6" />
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.dropdownSearchContainer}>
-                  <IconSymbol name="magnifyingglass" size={14} color="#9BA1A6" />
-                  <TextInput
-                    style={styles.dropdownSearchInput}
-                    placeholder="Search users by name or email"
-                    placeholderTextColor="#9BA1A6"
-                    value={userSearchQuery}
-                    onChangeText={setUserSearchQuery}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
+                {/* Email Input Section */}
+                <View style={styles.emailInputSection}>
+                  <View style={styles.emailInputContainer}>
+                    <IconSymbol name="envelope" size={16} color="#9BA1A6" />
+                    <TextInput
+                      style={styles.emailInput}
+                      placeholder="Enter email address"
+                      placeholderTextColor="#9BA1A6"
+                      value={emailInput}
+                      onChangeText={setEmailInput}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType="email-address"
+                      onSubmitEditing={handleAddParticipantByEmail}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.addEmailButton,
+                      emailInput.trim().length > 0 && styles.addEmailButtonActive
+                    ]}
+                    onPress={handleAddParticipantByEmail}
+                    disabled={emailInput.trim().length === 0 || isSaving}
+                    activeOpacity={0.7}>
+                    {isSaving ? (
+                      <LoadingSpinner size={20} color="#000000" />
+                    ) : (
+                      <IconSymbol 
+                        name="plus" 
+                        size={20} 
+                        color={emailInput.trim().length > 0 ? '#000000' : '#9BA1A6'} 
+                      />
+                    )}
+                  </TouchableOpacity>
                 </View>
-
-                {availableUsers.length === 0 ? (
-                  <Text style={styles.emptyText}>No users available to add.</Text>
-                ) : (() => {
-                  const q = userSearchQuery.trim().toLowerCase();
-                  const filtered =
-                    q.length === 0
-                      ? availableUsers
-                      : availableUsers.filter(
-                          (u) =>
-                            (u.name && u.name.toLowerCase().includes(q)) ||
-                            (u.email && u.email.toLowerCase().includes(q))
-                        );
-                  if (filtered.length === 0) {
-                    return <Text style={styles.emptyText}>No users match your search.</Text>;
-                  }
-                  return (
-                    <ScrollView style={styles.dropdownList} keyboardShouldPersistTaps="handled">
-                      {filtered.map((user) => (
-                        <TouchableOpacity
-                          key={user.id}
-                          style={styles.dropdownItem}
-                          onPress={() => handleAddParticipant(user)}
-                          activeOpacity={0.7}>
-                          <Text style={styles.dropdownItemName}>{user.name || user.email}</Text>
-                          <Text style={styles.dropdownItemEmail}>{user.email}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  );
-                })()}
                 </View>
               </TouchableWithoutFeedback>
             </View>
@@ -580,6 +535,40 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  emailInputSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 8,
+  },
+  emailInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#001a3c',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#2a3441',
+    gap: 8,
+  },
+  emailInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 15,
+  },
+  addEmailButton: {
+    backgroundColor: '#2a3441',
+    borderRadius: 10,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addEmailButtonActive: {
+    backgroundColor: '#FFD700',
   },
 });
 

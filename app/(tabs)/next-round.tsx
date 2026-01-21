@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useI18n } from '@/utils/i18n';
 import { formatParticipantName } from '@/utils/participant';
 
@@ -119,16 +118,6 @@ export default function NextRoundScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.content}>
-        {/* Decorative Elements */}
-        <View style={styles.decorativeContainer}>
-          <View style={styles.decorativeLeft}>
-            <IconSymbol name="arrow.triangle.2.circlepath" size={28} color="#61a5fb" />
-          </View>
-          <View style={styles.decorativeRight}>
-            <IconSymbol name="arrow.triangle.2.circlepath" size={28} color="#61a5fb" />
-          </View>
-        </View>
-
         {/* Main Content Card */}
         <View style={styles.card}>
           {/* Header Section */}
@@ -196,23 +185,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-  },
-  decorativeContainer: {
-    position: 'absolute',
-    top: '15%',
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 32,
-    zIndex: 0,
-  },
-  decorativeLeft: {
-    transform: [{ rotate: '-15deg' }],
-    opacity: 0.5,
-  },
-  decorativeRight: {
-    transform: [{ rotate: '15deg' }],
-    opacity: 0.5,
   },
   card: {
     width: '100%',
