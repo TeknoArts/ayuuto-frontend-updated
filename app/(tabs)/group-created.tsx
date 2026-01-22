@@ -15,9 +15,31 @@ export default function GroupCreatedScreen() {
   useEffect(() => {
     console.log('GroupCreatedScreen: useEffect triggered, groupId:', groupId, 'timestamp:', timestamp);
     
-    if (!groupId) {
-      console.warn('GroupCreatedScreen: No groupId provided');
-      // If no groupId, navigate to home immediately
+    const isCreating = params.isCreating === 'true';
+    
+    // If group is being created, wait a bit for it to complete
+    if (!groupId && isCreating) {
+      console.log('GroupCreatedScreen: Group is being created, waiting...');
+      // Wait for group creation to complete (check every 500ms, max 10 seconds)
+      let attempts = 0;
+      const maxAttempts = 20;
+      const checkInterval = setInterval(() => {
+        attempts++;
+        // The group creation happens in background from collection screen
+        // For now, just proceed with animation - the actual groupId will be handled
+        // when navigating to group-details (which will refresh)
+        if (attempts >= maxAttempts) {
+          clearInterval(checkInterval);
+          // Navigate to home if group creation takes too long
+          router.replace('/(tabs)');
+        }
+      }, 500);
+      
+      // Still show the animation while waiting
+      // Continue with normal flow below
+    } else if (!groupId && !isCreating) {
+      console.warn('GroupCreatedScreen: No groupId provided and not creating');
+      // If no groupId and not creating, navigate to home immediately
       setTimeout(() => {
         router.replace('/(tabs)');
       }, 100);

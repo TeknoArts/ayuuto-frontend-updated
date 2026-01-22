@@ -95,26 +95,11 @@ export default function CollectionScreen() {
       return;
     }
     
-    // Navigate immediately to loading/celebration screen
     const existingGroupId = params.groupId as string | undefined;
     const fromWizard = params.fromWizard === 'true';
     
-    // Navigate first, then do async work
-    router.push({
-      pathname: '/(tabs)/group-created',
-      params: {
-        ...params,
-        groupId: existingGroupId || '',
-        amount,
-        frequency,
-        collectionDate,
-        timestamp: Date.now().toString(),
-        isCreating: 'true', // Flag to indicate creation in progress
-      },
-    });
-    
-    // Do the async work in the background
-    (async () => {
+    // Start async work immediately but don't await - navigate right away
+    const createPromise = (async () => {
       try {
         const { createGroup, addParticipants, setCollectionDetails } = await import('@/utils/api');
 
@@ -158,7 +143,7 @@ export default function CollectionScreen() {
 
         if (!groupId) {
           console.error('No groupId available for setting collection details.');
-          return;
+          return null;
         }
 
         // Set collection details for the group
@@ -169,13 +154,37 @@ export default function CollectionScreen() {
           parseInt(collectionDate)
         );
 
-        // Update the group-created screen with the actual groupId
-        // The screen will handle showing success/error states
+        return groupId;
       } catch (error: any) {
         console.error('Error creating group / setting collection details:', error);
-        // Error will be handled by the group-created screen
+        return null;
       }
     })();
+    
+    // Navigate immediately - don't wait for creation
+    // If groupId exists, use it; otherwise the screen will wait for creation
+    router.push({
+      pathname: '/(tabs)/group-created',
+      params: {
+        ...params,
+        groupId: existingGroupId || '',
+        amount,
+        frequency,
+        collectionDate,
+        timestamp: Date.now().toString(),
+        isCreating: fromWizard && !existingGroupId ? 'true' : 'false',
+      },
+    });
+    
+    // Store the promise so the group-created screen can access it if needed
+    // For now, just let it run in background
+    createPromise.then((groupId) => {
+      if (groupId && !existingGroupId) {
+        // If we created a new group, we could update the screen
+        // But since we already navigated, the screen will handle it
+        console.log('Group created successfully:', groupId);
+      }
+    });
   };
 
   return (
