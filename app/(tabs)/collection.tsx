@@ -5,8 +5,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useI18n } from '@/utils/i18n';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { LoadingBar } from '@/components/ui/loading-bar';
 
 type Frequency = 'MONTHLY' | 'WEEKLY';
 
@@ -18,7 +16,6 @@ export default function CollectionScreen() {
   const [frequency, setFrequency] = useState<Frequency>('MONTHLY');
   const [isAmountFocused, setIsAmountFocused] = useState(false);
   const [isCollectionDateFocused, setIsCollectionDateFocused] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
 
   // Reset form when screen comes into focus
   useFocusEffect(
@@ -97,85 +94,88 @@ export default function CollectionScreen() {
     if (!isFormValid) {
       return;
     }
-    try {
-      setIsCreating(true);
-      const { createGroup, addParticipants, setCollectionDetails } = await import('@/utils/api');
+    
+    // Navigate immediately to loading/celebration screen
+    const existingGroupId = params.groupId as string | undefined;
+    const fromWizard = params.fromWizard === 'true';
+    
+    // Navigate first, then do async work
+    router.push({
+      pathname: '/(tabs)/group-created',
+      params: {
+        ...params,
+        groupId: existingGroupId || '',
+        amount,
+        frequency,
+        collectionDate,
+        timestamp: Date.now().toString(),
+        isCreating: 'true', // Flag to indicate creation in progress
+      },
+    });
+    
+    // Do the async work in the background
+    (async () => {
+      try {
+        const { createGroup, addParticipants, setCollectionDetails } = await import('@/utils/api');
 
-      const existingGroupId = params.groupId as string | undefined;
-      const fromWizard = params.fromWizard === 'true';
+        let groupId = existingGroupId;
 
-      let groupId = existingGroupId;
+        if (!groupId && fromWizard) {
+          const groupName = (params.groupName as string) || 'Ayuuto Group';
+          const memberCount = parseInt((params.memberCount as string) || '2') || 2;
 
-      if (!groupId && fromWizard) {
-        const groupName = (params.groupName as string) || 'Ayuuto Group';
-        const memberCount = parseInt((params.memberCount as string) || '2') || 2;
+          // Create the group first
+          const group = await createGroup(groupName, memberCount);
+          groupId = group.id;
 
-        // Create the group first
-        const group = await createGroup(groupName, memberCount);
-        groupId = group.id;
-
-        // Optionally attach participants if provided
-        const participantsParam = params.participants as string | undefined;
-        if (participantsParam) {
-          try {
-            const participantsData = JSON.parse(participantsParam);
-            if (Array.isArray(participantsData) && participantsData.length > 0) {
-              // Handle both old format (array of strings) and new format (array of objects)
-              const payload = participantsData.map((p: any) => {
-                if (typeof p === 'string') {
-                  // Old format: just userId string
-                  return { userId: p };
-                } else {
-                  // New format: object with userId, email, name
-                  return {
-                    userId: p.userId || null,
-                    email: p.email || null,
-                    name: p.name || null,
-                  };
-                }
-              });
-              await addParticipants(groupId, payload as any);
+          // Optionally attach participants if provided
+          const participantsParam = params.participants as string | undefined;
+          if (participantsParam) {
+            try {
+              const participantsData = JSON.parse(participantsParam);
+              if (Array.isArray(participantsData) && participantsData.length > 0) {
+                // Handle both old format (array of strings) and new format (array of objects)
+                const payload = participantsData.map((p: any) => {
+                  if (typeof p === 'string') {
+                    // Old format: just userId string
+                    return { userId: p };
+                  } else {
+                    // New format: object with userId, email, name
+                    return {
+                      userId: p.userId || null,
+                      email: p.email || null,
+                      name: p.name || null,
+                    };
+                  }
+                });
+                await addParticipants(groupId, payload as any);
+              }
+            } catch (e) {
+              console.warn('Failed to parse participants from params:', e);
             }
-          } catch (e) {
-            console.warn('Failed to parse participants from params:', e);
           }
         }
-      }
 
-      if (!groupId) {
-        console.error('No groupId available for setting collection details.');
-        return;
-      }
+        if (!groupId) {
+          console.error('No groupId available for setting collection details.');
+          return;
+        }
 
-      // Set collection details for the group
-      await setCollectionDetails(
-        groupId,
-        parseFloat(amount),
-        frequency,
-        parseInt(collectionDate)
-      );
-
-      // Navigate to group created celebration screen
-      router.push({
-        pathname: '/(tabs)/group-created',
-        params: {
-          ...params,
+        // Set collection details for the group
+        await setCollectionDetails(
           groupId,
-          amount,
+          parseFloat(amount),
           frequency,
-          collectionDate,
-          timestamp: Date.now().toString(),
-        },
-      });
-    } catch (error: any) {
-      console.error('Error creating group / setting collection details:', error);
-      alert(
-        t('error'),
-        error?.message || t('failedToCreate')
-      );
-    } finally {
-      setIsCreating(false);
-    }
+          parseInt(collectionDate)
+        );
+
+        // Update the group-created screen with the actual groupId
+        // The screen will handle showing success/error states
+      } catch (error: any) {
+        console.error('Error creating group / setting collection details:', error);
+        // Error will be handled by the group-created screen
+      }
+    })();
   };
 
   return (
@@ -300,15 +300,8 @@ export default function CollectionScreen() {
                 ]}
                 onPress={handleCreate}
                 activeOpacity={0.8}
-                disabled={!isFormValid || isCreating}>
-                {isCreating ? (
-                  <View style={styles.createButtonLoading}>
-                    <LoadingSpinner size={20} color="#FFFFFF" />
-                    <Text style={styles.createButtonText}>Creating...</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.createButtonText}>{t('create')} & {t('celebrate')}!</Text>
-                )}
+                disabled={!isFormValid}>
+                <Text style={styles.createButtonText}>{t('create')} & {t('celebrate')}!</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -483,12 +476,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     letterSpacing: 1.5,
-  },
-  createButtonLoading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
   },
 });
 
