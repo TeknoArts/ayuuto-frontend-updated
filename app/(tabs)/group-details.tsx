@@ -65,36 +65,48 @@ export default function GroupDetailsScreen() {
       if (isInitialLoad || showLoading) {
         setIsLoading(true);
       }
-      setIsLogsLoading(true);
-
-      const [groupData, logsData] = await Promise.all([
-        getGroupDetails(groupId),
-        getGroupLogs(groupId),
-      ]);
-
+      // Load group details first to check if user is owner
+      const groupData = await getGroupDetails(groupId);
+      
       if (groupData) {
         setGroup(groupData);
         
         // Check if current user is the owner
+        let userIsOwner = false;
         if (user && groupData.createdBy) {
           // Handle null createdBy (deleted user)
           if (typeof groupData.createdBy === 'object' && (!groupData.createdBy.id || groupData.createdBy.id === null)) {
-            setIsOwner(false);
+            userIsOwner = false;
           } else {
             const createdById =
               typeof groupData.createdBy === 'object'
               ? groupData.createdBy.id 
               : groupData.createdBy;
             const userId = user.id;
-            const userIsOwner =
+            userIsOwner =
               createdById?.toString() === userId?.toString() || createdById === userId;
-            setIsOwner(userIsOwner);
           }
         }
-      }
-
-      if (logsData) {
-        setLogs(logsData);
+        setIsOwner(userIsOwner);
+        
+        // Only load logs if user is NOT the owner (participants only)
+        if (!userIsOwner) {
+          setIsLogsLoading(true);
+          try {
+            const logsData = await getGroupLogs(groupId);
+            if (logsData) {
+              setLogs(logsData);
+            }
+          } catch (logError) {
+            console.error('Error loading group logs:', logError);
+          } finally {
+            setIsLogsLoading(false);
+          }
+        } else {
+          // Owner: don't load logs, set empty array
+          setLogs([]);
+          setIsLogsLoading(false);
+        }
       }
     } catch (error: any) {
       console.error('Error loading group details:', error);
@@ -783,71 +795,73 @@ export default function GroupDetailsScreen() {
           </View>
         )}
 
-        {/* Group Activity / Logs */}
-        <View style={styles.logsSection}>
-          <View style={styles.logsHeader}>
-            <Text style={styles.logsTitle}>{t('groupActivity')}</Text>
-            {logs.length > 3 && (
-              <TouchableOpacity
-                style={styles.viewMoreButton}
-                onPress={() => {
-                  router.push({
-                    pathname: '/(tabs)/group-activity-log',
-                    params: { groupId, groupName: group.name },
-                  });
-                }}
-                activeOpacity={0.8}>
-                <Text style={styles.viewMoreText}>{t('viewMore')}</Text>
-                <IconSymbol name="chevron.right" size={14} color="#FFD700" />
-              </TouchableOpacity>
+        {/* Group Activity / Logs - Only show to participants, not to owner */}
+        {!isOwner && (
+          <View style={styles.logsSection}>
+            <View style={styles.logsHeader}>
+              <Text style={styles.logsTitle}>{t('groupActivity')}</Text>
+              {logs.length > 3 && (
+                <TouchableOpacity
+                  style={styles.viewMoreButton}
+                  onPress={() => {
+                    router.push({
+                      pathname: '/(tabs)/group-activity-log',
+                      params: { groupId, groupName: group.name },
+                    });
+                  }}
+                  activeOpacity={0.8}>
+                  <Text style={styles.viewMoreText}>{t('viewMore')}</Text>
+                  <IconSymbol name="chevron.right" size={14} color="#FFD700" />
+                </TouchableOpacity>
+              )}
+            </View>
+            {isLogsLoading ? (
+              <View style={styles.logsEmptyState}>
+                <LoadingSpinner size={32} text={t('loadingActivity')} />
+              </View>
+            ) : logs.length === 0 ? (
+              <View style={styles.logsEmptyState}>
+                <Text style={styles.logsEmptyText}>{t('noActivityYet')}</Text>
+              </View>
+            ) : (
+              <View style={styles.logsList}>
+                {logs.slice(0, 3).map((log) => {
+                  const timestamp = log.paidAt || log.createdAt;
+                  const dateLabel = timestamp
+                    ? new Date(timestamp).toLocaleString()
+                    : '';
+                  return (
+                    <View key={log.id} style={styles.logItem}>
+                      <View style={styles.logLeft}>
+                        <View style={styles.logIcon}>
+                          <IconSymbol
+                            name="checkmark.circle.fill"
+                            size={18}
+                            color="#4CAF50"
+                          />
+                        </View>
+                        <View style={styles.logTextContainer}>
+                          <Text style={styles.logMainText}>
+                            {log.participantName
+                              ? `${log.participantName} paid`
+                              : 'Payment recorded'}
+                            {typeof log.roundNumber === 'number'
+                              ? ` • Round ${log.roundNumber}`
+                              : ''}
+                          </Text>
+                          {typeof log.amount === 'number' && log.amount > 0 && (
+                            <Text style={styles.logSubText}>Amount: ${log.amount}</Text>
+                          )}
+                        </View>
+                      </View>
+                      <Text style={styles.logTimeText}>{dateLabel}</Text>
+                    </View>
+                  );
+                })}
+              </View>
             )}
           </View>
-          {isLogsLoading ? (
-            <View style={styles.logsEmptyState}>
-              <LoadingSpinner size={32} text={t('loadingActivity')} />
-            </View>
-          ) : logs.length === 0 ? (
-            <View style={styles.logsEmptyState}>
-              <Text style={styles.logsEmptyText}>{t('noActivityYet')}</Text>
-            </View>
-          ) : (
-            <View style={styles.logsList}>
-              {logs.slice(0, 3).map((log) => {
-                const timestamp = log.paidAt || log.createdAt;
-                const dateLabel = timestamp
-                  ? new Date(timestamp).toLocaleString()
-                  : '';
-                return (
-                  <View key={log.id} style={styles.logItem}>
-                    <View style={styles.logLeft}>
-                      <View style={styles.logIcon}>
-                        <IconSymbol
-                          name="checkmark.circle.fill"
-                          size={18}
-                          color="#4CAF50"
-                        />
-                      </View>
-                      <View style={styles.logTextContainer}>
-                        <Text style={styles.logMainText}>
-                          {log.participantName
-                            ? `${log.participantName} paid`
-                            : 'Payment recorded'}
-                          {typeof log.roundNumber === 'number'
-                            ? ` • Round ${log.roundNumber}`
-                            : ''}
-                        </Text>
-                        {typeof log.amount === 'number' && log.amount > 0 && (
-                          <Text style={styles.logSubText}>Amount: ${log.amount}</Text>
-                        )}
-                      </View>
-                    </View>
-                    <Text style={styles.logTimeText}>{dateLabel}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
