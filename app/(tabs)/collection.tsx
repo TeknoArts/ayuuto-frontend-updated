@@ -98,93 +98,83 @@ export default function CollectionScreen() {
     const existingGroupId = params.groupId as string | undefined;
     const fromWizard = params.fromWizard === 'true';
     
-    // Start async work immediately but don't await - navigate right away
-    const createPromise = (async () => {
+    // Create group first (fast operation), then navigate immediately
+    let groupId = existingGroupId;
+    
+    if (!groupId && fromWizard) {
       try {
-        const { createGroup, addParticipants, setCollectionDetails } = await import('@/utils/api');
+        const { createGroup, addParticipants } = await import('@/utils/api');
+        const groupName = (params.groupName as string) || 'Ayuuto Group';
+        const memberCount = parseInt((params.memberCount as string) || '2') || 2;
 
-        let groupId = existingGroupId;
+        // Create the group first (this is fast)
+        const group = await createGroup(groupName, memberCount);
+        groupId = group.id;
 
-        if (!groupId && fromWizard) {
-          const groupName = (params.groupName as string) || 'Ayuuto Group';
-          const memberCount = parseInt((params.memberCount as string) || '2') || 2;
-
-          // Create the group first
-          const group = await createGroup(groupName, memberCount);
-          groupId = group.id;
-
-          // Optionally attach participants if provided
-          const participantsParam = params.participants as string | undefined;
-          if (participantsParam) {
-            try {
-              const participantsData = JSON.parse(participantsParam);
-              if (Array.isArray(participantsData) && participantsData.length > 0) {
-                // Handle both old format (array of strings) and new format (array of objects)
-                const payload = participantsData.map((p: any) => {
-                  if (typeof p === 'string') {
-                    // Old format: just userId string
-                    return { userId: p };
-                  } else {
-                    // New format: object with userId, email, name
-                    return {
-                      userId: p.userId || null,
-                      email: p.email || null,
-                      name: p.name || null,
-                    };
-                  }
-                });
-                await addParticipants(groupId, payload as any);
-              }
-            } catch (e) {
-              console.warn('Failed to parse participants from params:', e);
+        // Add participants if provided (also fast)
+        const participantsParam = params.participants as string | undefined;
+        if (participantsParam) {
+          try {
+            const participantsData = JSON.parse(participantsParam);
+            if (Array.isArray(participantsData) && participantsData.length > 0) {
+              const payload = participantsData.map((p: any) => {
+                if (typeof p === 'string') {
+                  return { userId: p };
+                } else {
+                  return {
+                    userId: p.userId || null,
+                    email: p.email || null,
+                    name: p.name || null,
+                  };
+                }
+              });
+              await addParticipants(groupId, payload as any);
             }
+          } catch (e) {
+            console.warn('Failed to parse participants from params:', e);
           }
         }
-
-        if (!groupId) {
-          console.error('No groupId available for setting collection details.');
-          return null;
-        }
-
-        // Set collection details for the group
-        await setCollectionDetails(
-          groupId,
-          parseFloat(amount),
-          frequency,
-          parseInt(collectionDate)
-        );
-
-        return groupId;
       } catch (error: any) {
-        console.error('Error creating group / setting collection details:', error);
-        return null;
+        console.error('Error creating group:', error);
+        alert(t('error'), error?.message || t('failedToCreate'));
+        return;
       }
-    })();
-    
-    // Navigate immediately - don't wait for creation
-    // If groupId exists, use it; otherwise the screen will wait for creation
+    }
+
+    if (!groupId) {
+      console.error('No groupId available for setting collection details.');
+      alert(t('error'), 'Failed to create group');
+      return;
+    }
+
+    // Navigate immediately to celebration screen
     router.push({
       pathname: '/(tabs)/group-created',
       params: {
         ...params,
-        groupId: existingGroupId || '',
+        groupId,
         amount,
         frequency,
         collectionDate,
         timestamp: Date.now().toString(),
-        isCreating: fromWizard && !existingGroupId ? 'true' : 'false',
       },
     });
     
-    // Store the promise so the group-created screen can access it if needed
-    // For now, just let it run in background
-    createPromise.then((groupId) => {
-      if (groupId && !existingGroupId) {
-        // If we created a new group, we could update the screen
-        // But since we already navigated, the screen will handle it
-        console.log('Group created successfully:', groupId);
+    // Set collection details in background (after navigation)
+    (async () => {
+      try {
+        const { setCollectionDetails } = await import('@/utils/api');
+        await setCollectionDetails(
+          groupId!,
+          parseFloat(amount),
+          frequency,
+          parseInt(collectionDate)
+        );
+      } catch (error: any) {
+        console.error('Error setting collection details:', error);
+        // Error is non-critical, group is already created
       }
-    });
+    })();
   };
 
   return (
