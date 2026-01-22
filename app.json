@@ -51,14 +51,14 @@
         "expo-notifications",
         {
           "icon": "./assets/images/icon.png",
-          "color": "#1a2332",
+          "color": "#011b3d",
           "sounds": []
         }
       ]
     ],
     "notification": {
       "icon": "./assets/images/icon.png",
-      "color": "#1a2332",
+      "color": "#011b3d",
       "iosDisplayInForeground": true,
       "androidMode": "default"
     },
