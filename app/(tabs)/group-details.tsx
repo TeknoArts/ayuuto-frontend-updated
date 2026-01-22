@@ -283,16 +283,18 @@ export default function GroupDetailsScreen() {
         // For other participants, update status and reload
         await updatePaymentStatus(groupId, participantId, newPaidStatus);
         
-        // Reload group details and logs to get updated payment status & history
-        const [updatedGroup, logsData] = await Promise.all([
-          getGroupDetails(groupId),
-          getGroupLogs(groupId),
-        ]);
+        // Reload group details (and logs only if not owner)
+        const updatedGroup = await getGroupDetails(groupId);
         if (updatedGroup) {
           setGroup(updatedGroup);
         }
-        if (logsData) {
-          setLogs(logsData);
+        
+        // Only load logs if user is NOT the owner
+        if (!isOwner) {
+          const logsData = await getGroupLogs(groupId);
+          if (logsData) {
+            setLogs(logsData);
+          }
         }
       }
     } catch (error: any) {
@@ -303,15 +305,17 @@ export default function GroupDetailsScreen() {
       );
       // Reload group details on error to ensure state is correct
       try {
-        const [updatedGroup, logsData] = await Promise.all([
-          getGroupDetails(groupId),
-          getGroupLogs(groupId),
-        ]);
+        const updatedGroup = await getGroupDetails(groupId);
         if (updatedGroup) {
           setGroup(updatedGroup);
         }
-        if (logsData) {
-          setLogs(logsData);
+        
+        // Only load logs if user is NOT the owner
+        if (!isOwner) {
+          const logsData = await getGroupLogs(groupId);
+          if (logsData) {
+            setLogs(logsData);
+          }
         }
       } catch (reloadError) {
         console.error('Error reloading group details:', reloadError);
