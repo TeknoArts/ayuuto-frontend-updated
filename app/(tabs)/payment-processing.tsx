@@ -45,6 +45,18 @@ export default function PaymentProcessingScreen() {
       return;
     }
 
+    // Update payment status in the background (non-blocking)
+    // This ensures the payment is recorded even if navigation was instant
+    const participantId = params.participantId as string;
+    if (participantId) {
+      import('@/utils/api').then(({ updatePaymentStatus }) => {
+        updatePaymentStatus(groupId, participantId, true).catch((error) => {
+          console.error('PaymentProcessingScreen: Failed to update payment status:', error);
+          // Error is logged but doesn't block the UI
+        });
+      });
+    }
+
     // Reset flags - IMPORTANT: Reset on every mount to ensure it works for all rounds
     hasNavigated.current = false;
     animationRef.current = null;

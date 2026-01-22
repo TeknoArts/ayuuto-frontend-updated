@@ -229,67 +229,46 @@ export default function GroupDetailsScreen() {
     try {
       const { updatePaymentStatus } = await import('@/utils/api');
       
-      // Reload group first to ensure we have the latest state
-      const latestGroup = await getGroupDetails(groupId);
-      if (!latestGroup) {
-        throw new Error('Failed to load group details');
-      }
-      setGroup(latestGroup);
-      
-      // Get sorted participants from latest group state
-      const participants = latestGroup.participants || [];
-      const sorted = latestGroup.isOrderSet
+      // Use current group state (no need to reload first - saves time)
+      const participants = group.participants || [];
+      const sorted = group.isOrderSet
         ? [...participants].sort((a, b) => (a.order || 0) - (b.order || 0))
         : participants;
       
-      // Check if this is the current recipient paying BEFORE updating
-      const currentRecipientIndex = latestGroup.currentRecipientIndex || 0;
+      // Check if this is the current recipient paying
+      const currentRecipientIndex = group.currentRecipientIndex || 0;
       const isFirstParticipant = sorted[currentRecipientIndex]?.id === participantId;
       const newPaidStatus = !currentPaidStatus;
       
       if (isFirstParticipant && newPaidStatus) {
-        // For current recipient paying, update status first
-        await updatePaymentStatus(groupId, participantId, true);
-        
-        // Reload again to get the updated payment status
-        const updatedGroup = await getGroupDetails(groupId);
-        if (!updatedGroup) {
-          throw new Error('Failed to reload group after payment update');
-        }
-        setGroup(updatedGroup);
-        
-        // Calculate total savings amount (amount per person * member count)
-        const totalSavings = updatedGroup.totalSavings || (updatedGroup.amountPerPerson || 0) * (updatedGroup.memberCount || 0);
-        
-        // Get current recipient info for dynamic display
-        const currentRecipientIndex = updatedGroup.currentRecipientIndex || 0;
-        const sortedParticipants = updatedGroup.isOrderSet
-          ? [...(updatedGroup.participants || [])].sort((a, b) => (a.order || 0) - (b.order || 0))
-          : (updatedGroup.participants || []);
-        const currentRecipient = sortedParticipants[currentRecipientIndex];
+        // For current recipient paying, navigate immediately for instant response
+        // Calculate values from current group state
+        const totalSavings = group.totalSavings || (group.amountPerPerson || 0) * (group.memberCount || 0);
+        const currentRecipient = sorted[currentRecipientIndex];
         const recipientName = formatParticipantName(currentRecipient?.name || '');
         const roundNumber = (currentRecipientIndex + 1).toString();
         
-        // Navigate to payment processing screen
-        try {
-          router.push({
-            pathname: '/(tabs)/payment-processing',
-            params: {
-              groupId,
-              amount: totalSavings.toString(),
-              recipientName,
-              roundNumber,
-              timestamp: Date.now().toString(), // Force remount on each navigation
-            },
-          });
-        } catch (navError) {
-          console.error('Navigation error:', navError);
-          // Reload to show updated state even if navigation fails
-          await loadGroupDetails();
-          throw new Error('Failed to navigate to payment screen');
-        }
+        // Navigate immediately - no waiting for API calls
+        router.push({
+          pathname: '/(tabs)/payment-processing',
+          params: {
+            groupId,
+            amount: totalSavings.toString(),
+            recipientName,
+            roundNumber,
+            participantId, // Pass participantId so payment screen can update status
+            timestamp: Date.now().toString(),
+          },
+        });
+        
+        // Make API call in background (non-blocking)
+        // Payment processing screen will handle the actual update
+        updatePaymentStatus(groupId, participantId, true).catch((error) => {
+          console.error('Background payment update failed:', error);
+          // Error will be handled when user returns to group details
+        });
       } else {
-        // For other participants, just toggle payment status
+        // For other participants, update status and reload
         await updatePaymentStatus(groupId, participantId, newPaidStatus);
         
         // Reload group details and logs to get updated payment status & history
