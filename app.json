@@ -11,7 +11,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.technoarts.ayuuto",
+      "bundleIdentifier": "com.ayuuto.app",
       "buildNumber": "1",
       "infoPlist": {
         "NSUserTrackingUsageDescription": "This app uses tracking to provide personalized experiences.",
@@ -31,7 +31,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.technoarts.ayuuto",
+      "package": "com.ayuuto.app",
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE"
@@ -78,9 +78,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "7225f913-f85b-49fc-97a2-ea3c3490793c"
+        "projectId": "16dd4e10-eaaa-4515-8942-17de84b9d872"
       }
     },
-    "owner": "technoarts165"
+    "owner": "technoarts"
   }
 }

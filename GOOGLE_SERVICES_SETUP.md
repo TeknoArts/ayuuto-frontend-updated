@@ -21,7 +21,7 @@ You need `google-services.json` if:
 4. Scroll down to **Your apps** section
 5. If you don't have an Android app yet:
    - Click **Add app** → Select **Android**
-   - Enter package name: `com.technoarts.ayuuto`
+   - Enter package name: `com.ayuuto.app`
    - Click **Register app**
 6. Download the `google-services.json` file
 
@@ -117,7 +117,7 @@ Your current setup uses **Expo's push notification service**, which:
 - Sync Gradle files
 
 ### Build fails after adding google-services.json
-- Make sure the package name in `google-services.json` matches `com.technoarts.ayuuto`
+- Make sure the package name in `google-services.json` matches `com.ayuuto.app`
 - Check that you added the plugin at the **end** of `app/build.gradle`
 
 ## Recommendation

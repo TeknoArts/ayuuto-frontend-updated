@@ -42,7 +42,7 @@ eas build --platform ios --profile production
    - **Platform:** iOS
    - **Name:** Ayuuto
    - **Primary Language:** English
-   - **Bundle ID:** `com.technoarts.ayuuto` (must match app.json)
+   - **Bundle ID:** `com.ayuuto.app` (must match app.json)
    - **SKU:** `ayuuto-ios` (any unique identifier)
 
 ---
@@ -138,7 +138,7 @@ Then add testers in App Store Connect → TestFlight.
 → You must host a privacy policy page (GitHub Pages is free)
 
 **"Invalid Bundle Identifier"**
-→ Ensure `com.technoarts.ayuuto` matches exactly in app.json and App Store Connect
+→ Ensure `com.ayuuto.app` matches exactly in app.json and App Store Connect
 
 **"Missing Screenshots"**
 → You must provide at least one screenshot for each required device size

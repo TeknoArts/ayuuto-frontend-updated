@@ -31,7 +31,7 @@ Your `app.json` needs additional iOS configuration. Update it with:
   "expo": {
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.technoarts.ayuuto",
+      "bundleIdentifier": "com.ayuuto.app",
       "buildNumber": "1",
       "infoPlist": {
         "NSUserTrackingUsageDescription": "This app uses tracking to provide personalized experiences.",
@@ -47,7 +47,7 @@ Your `app.json` needs additional iOS configuration. Update it with:
 ```
 
 **Important Fields:**
-- `bundleIdentifier`: Must be unique (already set: `com.technoarts.ayuuto`)
+- `bundleIdentifier`: Must be unique (already set: `com.ayuuto.app`)
 - `buildNumber`: Increment this for each App Store submission (start with "1")
 - `infoPlist`: Privacy descriptions required by Apple
 
@@ -125,7 +125,7 @@ eas build --platform ios --profile production --local
      - **Platform:** iOS
      - **Name:** Ayuuto
      - **Primary Language:** English (or your preferred language)
-     - **Bundle ID:** `com.technoarts.ayuuto` (must match app.json)
+     - **Bundle ID:** `com.ayuuto.app` (must match app.json)
      - **SKU:** `ayuuto-ios` (any unique identifier)
      - **User Access:** Full Access (or Limited Access if you have a team)
 
