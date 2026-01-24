@@ -27,101 +27,107 @@ export default function PrivacyPolicyScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}>
         
+        {/* Header Title */}
+        <Text style={styles.mainTitle}>Privacy Policy</Text>
+        <Text style={styles.appName}>Ayuuto APP</Text>
+        
         {/* Last Updated */}
-        <Text style={styles.lastUpdated}>Last Updated: {new Date().toLocaleDateString()}</Text>
+        <Text style={styles.lastUpdated}>Last updated: 01 Jan 2026</Text>
 
         {/* Introduction */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>1. Introduction</Text>
           <Text style={styles.sectionText}>
-            Welcome to Ayuuto. We are committed to protecting your privacy and ensuring you have a positive experience on our app. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application.
+            Ayuuto App respects your privacy. This Privacy Policy explains what information we collect, how we use it, and how we protect it.
           </Text>
         </View>
 
         {/* Information We Collect */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>2. Information We Collect</Text>
-          
-          <Text style={styles.subsectionTitle}>2.1 Personal Information</Text>
+          <Text style={styles.sectionTitle}>1. Information We Collect</Text>
           <Text style={styles.sectionText}>
-            When you create an account, we collect:
+            Ayuuto App only collects the minimum information required for the app to function.
           </Text>
-          <Text style={styles.bulletPoint}>• Name</Text>
+          <Text style={styles.sectionText}>
+            We collect the following personal data:
+          </Text>
+          <Text style={styles.bulletPoint}>• First name</Text>
+          <Text style={styles.bulletPoint}>• Last name</Text>
           <Text style={styles.bulletPoint}>• Email address</Text>
-          <Text style={styles.bulletPoint}>• Phone number (optional)</Text>
-
-          <Text style={styles.subsectionTitle}>2.2 Group Information</Text>
+          <Text style={styles.bulletPoint}>• Phone number</Text>
           <Text style={styles.sectionText}>
-            When you create or join a group, we collect:
+            No other personal data is collected or processed.
           </Text>
-          <Text style={styles.bulletPoint}>• Group name and description</Text>
-          <Text style={styles.bulletPoint}>• Participant information (names and email addresses)</Text>
-          <Text style={styles.bulletPoint}>• Payment and transaction records</Text>
-          <Text style={styles.bulletPoint}>• Collection amounts and schedules</Text>
-
-          <Text style={styles.subsectionTitle}>2.3 Device Information</Text>
-          <Text style={styles.sectionText}>
-            We automatically collect certain information about your device, including:
-          </Text>
-          <Text style={styles.bulletPoint}>• Device type and operating system</Text>
-          <Text style={styles.bulletPoint}>• Unique device identifiers</Text>
-          <Text style={styles.bulletPoint}>• Push notification tokens</Text>
         </View>
 
         {/* How We Use Your Information */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>3. How We Use Your Information</Text>
+          <Text style={styles.sectionTitle}>2. How We Use Your Information</Text>
           <Text style={styles.sectionText}>
-            We use the information we collect to:
+            Your information is used solely to:
           </Text>
-          <Text style={styles.bulletPoint}>• Provide, maintain, and improve our services</Text>
-          <Text style={styles.bulletPoint}>• Process transactions and manage group activities</Text>
-          <Text style={styles.bulletPoint}>• Send you notifications about group activities and payments</Text>
-          <Text style={styles.bulletPoint}>• Communicate with you about your account and our services</Text>
-          <Text style={styles.bulletPoint}>• Detect, prevent, and address technical issues</Text>
-          <Text style={styles.bulletPoint}>• Comply with legal obligations</Text>
-        </View>
-
-        {/* Information Sharing */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>4. Information Sharing and Disclosure</Text>
+          <Text style={styles.bulletPoint}>• Identify users within savings groups</Text>
+          <Text style={styles.bulletPoint}>• Enable group organization and communication</Text>
+          <Text style={styles.bulletPoint}>• Ensure clarity and trust between participants</Text>
           <Text style={styles.sectionText}>
-            We do not sell your personal information. We may share your information only in the following circumstances:
-          </Text>
-          <Text style={styles.bulletPoint}>• With other group members: Your name and email may be visible to other participants in groups you join</Text>
-          <Text style={styles.bulletPoint}>• Service providers: We may share information with third-party service providers who perform services on our behalf (e.g., cloud hosting, email delivery)</Text>
-          <Text style={styles.bulletPoint}>• Legal requirements: We may disclose information if required by law or to protect our rights and safety</Text>
-          <Text style={styles.bulletPoint}>• Business transfers: In the event of a merger, acquisition, or sale of assets, your information may be transferred</Text>
-        </View>
-
-        {/* Data Security */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>5. Data Security</Text>
-          <Text style={styles.sectionText}>
-            We implement appropriate technical and organizational measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction. However, no method of transmission over the internet or electronic storage is 100% secure, and we cannot guarantee absolute security.
+            Ayuuto App does not use your data for marketing, advertising, or analytics.
           </Text>
         </View>
 
-        {/* Your Rights */}
+        {/* No Financial Data */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>6. Your Rights</Text>
+          <Text style={styles.sectionTitle}>3. No Financial Data</Text>
           <Text style={styles.sectionText}>
-            You have the right to:
+            Ayuuto App does not handle, store, or process any money or financial transactions.
           </Text>
-          <Text style={styles.bulletPoint}>• Access your personal information</Text>
-          <Text style={styles.bulletPoint}>• Correct inaccurate or incomplete information</Text>
-          <Text style={styles.bulletPoint}>• Request deletion of your account and data</Text>
-          <Text style={styles.bulletPoint}>• Opt-out of certain communications</Text>
           <Text style={styles.sectionText}>
-            To exercise these rights, please contact us using the information provided in the "Contact Us" section below.
+            All savings arrangements and payments take place outside the app, directly between users.
+          </Text>
+        </View>
+
+        {/* Data Storage and Hosting */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>4. Data Storage and Hosting</Text>
+          <Text style={styles.sectionText}>
+            All data is securely stored on servers hosted by Railway.
+          </Text>
+          <Text style={styles.sectionText}>
+            We take reasonable technical and organizational measures to protect your information from unauthorized access, loss, or misuse.
+          </Text>
+        </View>
+
+        {/* Third-Party Services */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>5. Third-Party Services</Text>
+          <Text style={styles.sectionText}>
+            Ayuuto App does not share your personal data with third parties.
+          </Text>
+          <Text style={styles.sectionText}>
+            No external tools or services process user data beyond our hosting provider (Railway).
           </Text>
         </View>
 
         {/* Data Retention */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>7. Data Retention</Text>
+          <Text style={styles.sectionTitle}>6. Data Retention</Text>
           <Text style={styles.sectionText}>
-            We retain your personal information for as long as necessary to provide our services and fulfill the purposes described in this Privacy Policy. When you delete your account, we will delete or anonymize your personal information, except where we are required to retain it for legal or regulatory purposes.
+            Your data is stored only for as long as you use the Ayuuto App.
+          </Text>
+          <Text style={styles.sectionText}>
+            If you stop using the app or request deletion, your personal data will be removed within a reasonable time.
+          </Text>
+        </View>
+
+        {/* Your Rights */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>7. Your Rights</Text>
+          <Text style={styles.sectionText}>
+            You have the right to:
+          </Text>
+          <Text style={styles.bulletPoint}>• Access the personal data we hold about you</Text>
+          <Text style={styles.bulletPoint}>• Request correction of inaccurate information</Text>
+          <Text style={styles.bulletPoint}>• Request deletion of your data</Text>
+          <Text style={styles.sectionText}>
+            To exercise these rights, contact us using the details below.
           </Text>
         </View>
 
@@ -129,7 +135,10 @@ export default function PrivacyPolicyScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>8. Children's Privacy</Text>
           <Text style={styles.sectionText}>
-            Our services are not intended for children under the age of 18. We do not knowingly collect personal information from children. If you believe we have collected information from a child, please contact us immediately.
+            Ayuuto App is not intended for use by children under the age of 13.
+          </Text>
+          <Text style={styles.sectionText}>
+            We do not knowingly collect personal data from children.
           </Text>
         </View>
 
@@ -137,18 +146,20 @@ export default function PrivacyPolicyScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>9. Changes to This Privacy Policy</Text>
           <Text style={styles.sectionText}>
-            We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last Updated" date. You are advised to review this Privacy Policy periodically for any changes.
+            We may update this Privacy Policy from time to time.
+          </Text>
+          <Text style={styles.sectionText}>
+            Any changes will be published on this page with an updated revision date.
           </Text>
         </View>
 
-        {/* Contact Us */}
+        {/* Contact Information */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>10. Contact Us</Text>
+          <Text style={styles.sectionTitle}>10. Contact Information</Text>
           <Text style={styles.sectionText}>
-            If you have any questions about this Privacy Policy, please contact us:
+            If you have questions about this Privacy Policy or how your data is handled, please contact us:
           </Text>
-          <Text style={styles.contactInfo}>Email: support@ayuuto.app</Text>
-          <Text style={styles.contactInfo}>Website: www.ayuuto.app</Text>
+          <Text style={styles.contactInfo}>Email: hello@ayuuto.app</Text>
         </View>
 
         {/* Spacing at bottom */}
@@ -190,6 +201,22 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+  },
+  mainTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFD700',
+    marginBottom: 8,
+    textAlign: 'center',
+    letterSpacing: 1,
+  },
+  appName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 16,
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
   lastUpdated: {
     fontSize: 12,
