@@ -121,6 +121,16 @@ export default function SettingsScreen() {
           />
         </View>
 
+        {/* Privacy Policy Card */}
+        <TouchableOpacity 
+          style={styles.privacyCard}
+          onPress={() => router.push('/(tabs)/privacy-policy')}
+          activeOpacity={0.8}>
+          <IconSymbol name="doc.text.fill" size={20} color="#FFD700" />
+          <Text style={styles.privacyText}>Privacy Policy</Text>
+          <IconSymbol name="chevron.right" size={16} color="#9BA1A6" />
+        </TouchableOpacity>
+
         {/* Logout Card */}
         <TouchableOpacity 
           style={styles.logoutCard}
@@ -223,6 +233,24 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     letterSpacing: 0.5,
+  },
+  privacyCard: {
+    backgroundColor: '#002b61',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#1a2332',
+  },
+  privacyText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+    flex: 1,
   },
   logoutCard: {
     backgroundColor: '#002b61',
