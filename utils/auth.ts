@@ -7,10 +7,10 @@ const USER_DATA_KEY = 'user_data';
 
 // Backend API Configuration
 // ============================================
-// PRODUCTION MODE: Set to true to use Railway server
+// PRODUCTION MODE: Set to true to use DigitalOcean Droplet
 // ============================================
-const USE_PRODUCTION = true; // Set to true to use Railway, false for local development
-const PRODUCTION_API_URL = 'https://web-production-40b9d.up.railway.app/api'; // TODO: Replace with your Railway URL
+const USE_PRODUCTION = true; // Set to true to use DigitalOcean Droplet, false for local development
+const PRODUCTION_API_URL = 'http://104.248.117.205/api'; // DigitalOcean Droplet - Nginx proxies on port 80
 
 // Local Development Configuration
 // Set to true if testing on a PHYSICAL DEVICE (iPhone/Android phone)
@@ -71,9 +71,9 @@ console.log(`[AUTH] USE_PRODUCTION: ${USE_PRODUCTION}`);
 console.log(`[AUTH] Using base URL: ${API_BASE_URL}`);
 if (!USE_PRODUCTION) {
   console.warn(`[AUTH] ⚠️  WARNING: Using LOCAL development mode! App will only work on same WiFi!`);
-  console.warn(`[AUTH] ⚠️  Set USE_PRODUCTION = true to use Railway (works from anywhere)`);
+  console.warn(`[AUTH] ⚠️  Set USE_PRODUCTION = true to use DigitalOcean Droplet (works from anywhere)`);
 } else {
-  console.log(`[AUTH] ✅ Using PRODUCTION mode (Railway) - should work from any WiFi`);
+  console.log(`[AUTH] ✅ Using PRODUCTION mode (DigitalOcean Droplet) - should work from any WiFi`);
 }
 
 export interface UserData {
@@ -308,7 +308,7 @@ export async function loginUser(payload: {
     console.error('[API] Response URL:', response.url);
     
     if (response.status === 404 || text.includes('not found') || text.includes('Application not found')) {
-      throw new Error(`Railway service not found or not running. Please check:\n1. Railway dashboard - is service online?\n2. Service URL: ${API_BASE_URL}\n3. Check Railway deployment logs`);
+      throw new Error(`DigitalOcean Droplet service not found or not running. Please check:\n1. DigitalOcean dashboard - is Droplet running?\n2. Service URL: ${API_BASE_URL}\n3. Check PM2 logs: ssh to Droplet and run 'pm2 logs ayuuto-backend'`);
     }
     
     throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
@@ -329,15 +329,15 @@ export async function loginUser(payload: {
       success: json.success
     });
     
-    // Handle Railway-specific errors
+    // Handle DigitalOcean-specific errors
     if (json.message && (json.message.includes('not found') || json.message.includes('Application not found'))) {
-      const errorMsg = `Railway service error: ${json.message}\n\n` +
+      const errorMsg = `DigitalOcean Droplet service error: ${json.message}\n\n` +
         `Troubleshooting:\n` +
-        `1. Check Railway dashboard: https://railway.app\n` +
-        `2. Verify service is online (green dot)\n` +
+        `1. Check DigitalOcean dashboard: https://cloud.digitalocean.com\n` +
+        `2. Verify Droplet is running\n` +
         `3. Service URL: ${API_BASE_URL}\n` +
-        `4. Check Railway deployment logs for errors\n` +
-        `5. Try redeploying the service in Railway`;
+        `4. Check PM2 logs: ssh to Droplet and run 'pm2 logs ayuuto-backend'\n` +
+        `5. Restart service: pm2 restart ayuuto-backend`;
       throw new Error(errorMsg);
     }
     
@@ -372,45 +372,49 @@ export async function loginUser(payload: {
       });
     }
     
-    // Handle Railway-specific errors
+    // Handle DigitalOcean-specific errors
     if (error.message.includes('failed to respond') || error.message.includes('Application failed to respond')) {
-      const errorMsg = `Railway service failed to respond!\n\n` +
+      const errorMsg = `DigitalOcean Droplet service failed to respond!\n\n` +
         `Troubleshooting:\n` +
-        `1. Check Railway dashboard: https://railway.app\n` +
-        `2. Verify service is online (green dot)\n` +
+        `1. Check DigitalOcean dashboard: https://cloud.digitalocean.com\n` +
+        `2. Verify Droplet is running\n` +
         `3. Service URL: ${API_BASE_URL}\n` +
-        `4. Check Railway logs for errors:\n` +
-        `   - Look for "MONGODB_URI not set" → Add MONGODB_URI in Railway Variables\n` +
+        `4. Check PM2 logs for errors:\n` +
+        `   - SSH to Droplet: ssh root@YOUR_DROPLET_IP\n` +
+        `   - Run: pm2 logs ayuuto-backend\n` +
+        `   - Look for "MONGODB_URI not set" → Check .env file\n` +
         `   - Look for "MongoDB connection error" → Check MongoDB Atlas settings\n` +
         `   - Look for "Server is running" → Service is up\n` +
-        `5. Service might be sleeping (free tier) - try accessing Railway dashboard\n` +
-        `6. If MongoDB error: Set MONGODB_URI in Railway → Variables → + New Variable\n` +
-        `7. Try redeploying the service in Railway`;
+        `5. Check Nginx: systemctl status nginx\n` +
+        `6. Restart service: pm2 restart ayuuto-backend`;
       throw new Error(errorMsg);
     }
     
     if (error.message.includes('timed out') || error.message.includes('timeout')) {
       const errorMsg = `Connection timeout!\n\nTrying to connect to: ${API_BASE_URL}\n\n` +
         `Troubleshooting:\n` +
-        `1. Check Railway dashboard - is service online?\n` +
-        `2. Service might be slow or sleeping\n` +
-        `3. Check Railway logs for errors\n` +
-        `4. Try accessing: ${API_BASE_URL.replace('/api', '')} in browser`;
+        `1. Check DigitalOcean dashboard - is Droplet running?\n` +
+        `2. Service might be slow or overloaded\n` +
+        `3. Check PM2 logs: ssh to Droplet and run 'pm2 logs ayuuto-backend'\n` +
+        `4. Try accessing: ${API_BASE_URL.replace('/api', '')} in browser\n` +
+        `5. Restart service: pm2 restart ayuuto-backend`;
       throw new Error(errorMsg);
     }
     
     if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
       if (USE_PRODUCTION) {
-        throw new Error(`Cannot connect to Railway server!\n\n` +
+        throw new Error(`Cannot connect to DigitalOcean Droplet!\n\n` +
           `Service URL: ${API_BASE_URL}\n\n` +
           `Troubleshooting:\n` +
-          `1. Check Railway dashboard - is service online?\n` +
-          `2. Check Railway logs for:\n` +
-          `   - "MONGODB_URI not set" → Add MONGODB_URI in Railway Variables\n` +
-          `   - "MongoDB connection error" → Check MongoDB Atlas\n` +
+          `1. Check DigitalOcean dashboard - is Droplet running?\n` +
+          `2. Check PM2 logs:\n` +
+          `   - SSH to Droplet: ssh root@YOUR_DROPLET_IP\n` +
+          `   - Run: pm2 logs ayuuto-backend\n` +
+          `   - Look for "MONGODB_URI not set" → Check .env file\n` +
+          `   - Look for "MongoDB connection error" → Check MongoDB Atlas\n` +
           `3. Test URL in browser: ${API_BASE_URL.replace('/api', '')}\n` +
-          `4. Check Railway deployment logs\n` +
-          `5. Verify service is not sleeping (free tier)`);
+          `4. Check Nginx: systemctl status nginx\n` +
+          `5. Restart service: pm2 restart ayuuto-backend`);
       } else {
         throw new Error(buildNetworkErrorMessage('/auth/login'));
       }

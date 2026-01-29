@@ -9,7 +9,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { getUserData, UserData } from '@/utils/auth';
 import { getUserGroups, deleteGroup, type Group } from '@/utils/api';
 import { useI18n } from '@/utils/i18n';
-import { alert } from '@/utils/alert';
+import { alert, showAutoDismissAlert } from '@/utils/alert';
 
 export default function HomeScreen() {
   const { t, language } = useI18n();
@@ -23,7 +23,7 @@ export default function HomeScreen() {
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const isLoadingRef = useRef(false);
 
-  const loadGroups = useCallback(async (showLoading = false) => {
+  const loadGroups = useCallback(async (showLoading = false, options?: { silent?: boolean }) => {
     // Prevent multiple simultaneous loads
     if (isLoadingRef.current) {
       console.log('HomeScreen: Load already in progress, skipping');
@@ -49,8 +49,8 @@ export default function HomeScreen() {
     
     try {
       isLoadingRef.current = true;
-      // Only show loading state on initial load or when explicitly requested
-      if (isInitialLoad || showLoading) {
+      // Only show loading state on initial load or when explicitly requested; never for silent (e.g. focus) reload
+      if (!options?.silent && (isInitialLoad || showLoading)) {
         setIsLoading(true);
       }
       console.log('HomeScreen: Loading groups for user:', currentUser.id);
@@ -255,8 +255,8 @@ export default function HomeScreen() {
         return;
       }
       
-      // Show error to user for other errors
-      if (isInitialLoad || showLoading) {
+      // Show error to user for other errors (not for silent reload)
+      if (!options?.silent && (isInitialLoad || showLoading)) {
         alert(
           'Error',
           error?.message || 'Failed to load groups. Please try again.',
@@ -316,19 +316,19 @@ export default function HomeScreen() {
       console.log('HomeScreen: Refresh param detected, reloading groups (silent)');
       // Small delay to ensure navigation is complete
       setTimeout(() => {
-        loadGroups(false); // Don't show loading state on refresh
+        loadGroups(false, { silent: true });
       }, 500);
     }
   }, [params.refresh, loadGroups]);
 
-  // Reload groups when screen comes into focus (but don't show loading state)
+  // Reload groups when screen comes into focus (silent: no loader, no error popup)
   useFocusEffect(
     useCallback(() => {
       console.log('HomeScreen: Screen focused, reloading groups (silent)');
       // Small delay to ensure navigation is complete
       const reload = async () => {
         await new Promise((resolve) => setTimeout(resolve, 300));
-        await loadGroups(false); // Don't show loading state on focus
+        await loadGroups(false, { silent: true });
       };
       reload();
       // No cleanup needed - we want this to run every time screen focuses
@@ -362,6 +362,7 @@ export default function HomeScreen() {
               
               // Delete the group from the backend
               await deleteGroup(groupId);
+              showAutoDismissAlert(t('success'), t('groupDeletedSuccess'));
               
               // Reload groups to ensure consistency with backend
               // Use a small delay to ensure backend has processed the deletion
@@ -663,7 +664,7 @@ export default function HomeScreen() {
                         </Text>
                       </View>
                     </View>
-                    <TouchableOpacity
+                    {/* <TouchableOpacity
                       style={[
                         styles.deleteButton,
                         deletingGroupId === group.id && styles.deleteButtonDisabled
@@ -683,7 +684,7 @@ export default function HomeScreen() {
                       ) : (
                         <IconSymbol name="trash.fill" size={18} color="#FF6B6B" />
                       )}
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                   </TouchableOpacity>
                 </View>
               )}

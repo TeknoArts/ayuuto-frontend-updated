@@ -45,12 +45,11 @@ export default function PaymentProcessingScreen() {
       return;
     }
 
-    // Update payment status in the background (non-blocking)
-    // This ensures the payment is recorded even if navigation was instant
+    // Update payment status in the background (non-blocking) - source: pay_now for "Paid by Admin" notification
     const participantId = params.participantId as string;
     if (participantId) {
       import('@/utils/api').then(({ updatePaymentStatus }) => {
-        updatePaymentStatus(groupId, participantId, true).catch((error) => {
+        updatePaymentStatus(groupId, participantId, true, 'pay_now').catch((error) => {
           console.error('PaymentProcessingScreen: Failed to update payment status:', error);
           // Error is logged but doesn't block the UI
         });

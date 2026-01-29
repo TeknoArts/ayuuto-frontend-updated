@@ -1,0 +1,13 @@
+diff --git a/node_modules/expo-device/ios/UIDevice.swift b/node_modules/expo-device/ios/UIDevice.swift
+index a1b2c3d..e4f5g6h 100644
+--- a/node_modules/expo-device/ios/UIDevice.swift
++++ b/node_modules/expo-device/ios/UIDevice.swift
+@@ -185,6 +185,7 @@ public extension UIDevice {
+   // Credit: https://github.com/developerinsider/isJailBroken/blob/master/IsJailBroken/Extension/UIDevice%2BJailBroken.swift
+   var isSimulator: Bool {
+-    return TARGET_OS_SIMULATOR != 0
++    // Swift-compatible simulator check using model identifier
++    return ["i386", "x86_64"].contains(UIDevice.modelIdentifier) || ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] != nil
+   }
+ 
+   var isJailbroken: Bool {

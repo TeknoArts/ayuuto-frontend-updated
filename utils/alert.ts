@@ -25,6 +25,22 @@ export const alert = (title: string, message?: string, buttons?: AlertButton[]):
 };
 
 /**
+ * Show an alert that automatically dismisses after a delay (no OK button).
+ * @param title - Alert title
+ * @param message - Alert message
+ * @param durationMs - How long to show before auto-dismiss (default 2500)
+ */
+export const showAutoDismissAlert = (
+  title: string,
+  message: string,
+  durationMs: number = 2500
+): void => {
+  setTimeout(() => {
+    showCustomAlert(title, message, undefined, { autoDismissMs: durationMs });
+  }, 10);
+};
+
+/**
  * Convenience method that matches Alert.alert API exactly
  */
 export const showAlert = alert;

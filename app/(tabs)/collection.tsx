@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { useState, useCallback, useRef } from 'react';
+import { ActivityIndicator, StyleSheet, View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -16,6 +16,8 @@ export default function CollectionScreen() {
   const [frequency, setFrequency] = useState<Frequency>('MONTHLY');
   const [isAmountFocused, setIsAmountFocused] = useState(false);
   const [isCollectionDateFocused, setIsCollectionDateFocused] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const isCreatingRef = useRef(false);
 
   // Reset form when screen comes into focus
   useFocusEffect(
@@ -91,9 +93,13 @@ export default function CollectionScreen() {
   };
 
   const handleCreate = async () => {
-    if (!isFormValid) {
+    if (!isFormValid || isCreatingRef.current) {
       return;
     }
+
+    // Lock immediately to prevent double taps and show loader
+    isCreatingRef.current = true;
+    setIsCreating(true);
     
     const existingGroupId = params.groupId as string | undefined;
     const fromWizard = params.fromWizard === 'true';
@@ -103,40 +109,73 @@ export default function CollectionScreen() {
     
     if (!groupId && fromWizard) {
       try {
-        const { createGroup, addParticipants } = await import('@/utils/api');
+        const { createGroup, addParticipants, setCollectionDetails } = await import('@/utils/api');
         const groupName = (params.groupName as string) || 'Ayuuto Group';
         const memberCount = parseInt((params.memberCount as string) || '2') || 2;
 
-        // Create the group first (this is fast)
+        // Create the group first (can take time on slow network)
         const group = await createGroup(groupName, memberCount);
         groupId = group.id;
 
-        // Add participants if provided (also fast)
-        const participantsParam = params.participants as string | undefined;
-        if (participantsParam) {
-          try {
-            const participantsData = JSON.parse(participantsParam);
-            if (Array.isArray(participantsData) && participantsData.length > 0) {
-              const payload = participantsData.map((p: any) => {
-                if (typeof p === 'string') {
-                  return { userId: p };
-                } else {
+        // Navigate ASAP after we have groupId (instant UX)
+        const amountValue = parseFloat(amount);
+        const collectionDateValue = parseInt(collectionDate, 10);
+
+        // Unlock before navigating to avoid setState after unmount
+        isCreatingRef.current = false;
+        setIsCreating(false);
+
+        router.push({
+          pathname: '/(tabs)/group-created',
+          params: {
+            ...params,
+            groupId,
+            amount,
+            frequency,
+            collectionDate,
+            timestamp: Date.now().toString(),
+          },
+        });
+
+        // Do the slower setup work in background (non-blocking)
+        (async () => {
+          // Add participants if provided
+          const participantsParam = params.participants as string | undefined;
+          if (participantsParam) {
+            try {
+              const participantsData = JSON.parse(participantsParam);
+              if (Array.isArray(participantsData) && participantsData.length > 0) {
+                const payload = participantsData.map((p: any) => {
+                  if (typeof p === 'string') {
+                    return { userId: p };
+                  }
                   return {
                     userId: p.userId || null,
                     email: p.email || null,
                     name: p.name || null,
                   };
-                }
-              });
-              await addParticipants(groupId, payload as any);
+                });
+                await addParticipants(groupId!, payload as any);
+              }
+            } catch (e) {
+              console.warn('Failed to parse participants from params:', e);
             }
-          } catch (e) {
-            console.warn('Failed to parse participants from params:', e);
           }
-        }
+
+          // Set collection details
+          try {
+            await setCollectionDetails(groupId!, amountValue, frequency, collectionDateValue);
+          } catch (error: any) {
+            console.error('Error setting collection details:', error);
+          }
+        })();
+
+        return;
       } catch (error: any) {
         console.error('Error creating group:', error);
         alert(t('error'), error?.message || t('failedToCreate'));
+        isCreatingRef.current = false;
+        setIsCreating(false);
         return;
       }
     }
@@ -144,10 +183,14 @@ export default function CollectionScreen() {
     if (!groupId) {
       console.error('No groupId available for setting collection details.');
       alert(t('error'), 'Failed to create group');
+      isCreatingRef.current = false;
+      setIsCreating(false);
       return;
     }
 
     // Navigate immediately to celebration screen
+    isCreatingRef.current = false;
+    setIsCreating(false);
     router.push({
       pathname: '/(tabs)/group-created',
       params: {
@@ -295,12 +338,21 @@ export default function CollectionScreen() {
               <TouchableOpacity
                 style={[
                   styles.createButton,
-                  isFormValid && styles.createButtonActive
+                  isFormValid && styles.createButtonActive,
+                  isCreating && styles.createButtonDisabled,
                 ]}
                 onPress={handleCreate}
-                activeOpacity={0.8}
-                disabled={!isFormValid}>
-                <Text style={styles.createButtonText}>{t('create')} & {t('celebrate')}!</Text>
+                activeOpacity={isCreating ? 1 : 0.8}
+                disabled={!isFormValid || isCreating}>
+                {/* Keep text to preserve button size; hide it visually when loading */}
+                <Text style={[styles.createButtonText, isCreating && styles.createButtonTextHidden]}>
+                  {t('create')} & {t('celebrate')}!
+                </Text>
+                {isCreating && (
+                  <View style={styles.createButtonSpinnerOverlay} pointerEvents="none">
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -475,6 +527,21 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     letterSpacing: 1.5,
+  },
+  createButtonDisabled: {
+    opacity: 0.85,
+  },
+  createButtonTextHidden: {
+    opacity: 0,
+  },
+  createButtonSpinnerOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
