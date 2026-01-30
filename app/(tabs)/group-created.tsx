@@ -1,33 +1,69 @@
-import { useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, Animated, Easing } from 'react-native';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { StyleSheet, View, Text, Animated, Easing, BackHandler, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { createGroup } from '@/utils/api';
+import { alert, confirm } from '@/utils/alert';
 
 export default function GroupCreatedScreen() {
   const params = useLocalSearchParams();
-  const groupId = params.groupId as string;
+  const groupName = params.groupName as string;
+  const amount = params.amount as string;
+  const collectionDate = params.collectionDate as string;
+  const participantsJson = params.participants as string;
   const timestamp = params.timestamp as string || Date.now().toString();
+  
+  // Legacy support - if groupId is passed directly (old flow)
+  const legacyGroupId = params.groupId as string;
+  
   const progress = useRef(new Animated.Value(0)).current;
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
   const hasNavigated = useRef(false);
+  const [statusText, setStatusText] = useState('Creating your group...');
+  const [createdGroupId, setCreatedGroupId] = useState<string | null>(legacyGroupId || null);
+  const [isCreating, setIsCreating] = useState(true);
+  const [hasError, setHasError] = useState(false);
+
+  // Handle back button - show confirmation
+  const handleBackPress = useCallback(() => {
+    if (isCreating && !hasError) {
+      // Group is being created, show confirmation
+      confirm(
+        'Leave Group Creation?',
+        'Are you sure you want to leave? Your group is being created.',
+        () => {
+          // User confirmed - go to home
+          router.replace('/(tabs)');
+        },
+        () => {
+          // User cancelled - do nothing
+        }
+      );
+      return true; // Prevent default back action
+    } else if (hasError) {
+      // Error occurred, go home
+      router.replace('/(tabs)');
+      return true;
+    }
+    return false;
+  }, [isCreating, hasError]);
+
+  // Handle Android hardware back button
+  useFocusEffect(
+    useCallback(() => {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+      return () => backHandler.remove();
+    }, [handleBackPress])
+  );
 
   useEffect(() => {
-    console.log('GroupCreatedScreen: useEffect triggered, groupId:', groupId, 'timestamp:', timestamp);
+    console.log('GroupCreatedScreen: Starting, groupName:', groupName, 'timestamp:', timestamp);
     
-    if (!groupId) {
-      console.warn('GroupCreatedScreen: No groupId provided');
-      // If no groupId, navigate to home immediately
-      setTimeout(() => {
-        router.replace('/(tabs)');
-      }, 100);
-      return;
-    }
-
-    console.log('GroupCreatedScreen: Starting animation for groupId:', groupId);
-
-    // Reset flags - IMPORTANT: Reset on every mount to ensure it works for all uses
+    // Reset flags
     hasNavigated.current = false;
+    setIsCreating(true);
+    setHasError(false);
     
     // Stop any existing animation
     if (animationRef.current) {
@@ -35,15 +71,73 @@ export default function GroupCreatedScreen() {
       animationRef.current = null;
     }
 
-    // Reset animation value to 0 before starting - CRITICAL for subsequent navigations
+    // Reset animation value
     progress.setValue(0);
 
-    // Small delay to ensure component is fully mounted and rendered before starting animation
+    // Create group if we have the data (new flow)
+    const createGroupAsync = async () => {
+      if (groupName && participantsJson && !legacyGroupId) {
+        try {
+          const participants = JSON.parse(participantsJson);
+          const participantsData = participants.map((p: { name: string }) => ({
+            name: p.name.trim(),
+            email: null,
+          }));
+          
+          const amountNum = parseFloat(amount) || 0;
+          const collectionDateNum = parseInt(collectionDate) || 1;
+          
+          console.log('GroupCreatedScreen: Creating group with:', {
+            groupName,
+            participantCount: participantsData.length,
+            amount: amountNum,
+            collectionDate: collectionDateNum,
+          });
+          
+          const newGroup = await createGroup(
+            groupName,
+            participantsData.length,
+            participantsData,
+            amountNum,
+            collectionDateNum
+          );
+          
+          console.log('GroupCreatedScreen: Group created successfully:', newGroup.id);
+          setCreatedGroupId(newGroup.id);
+          setStatusText('Group created successfully!');
+          setIsCreating(false);
+        } catch (error: any) {
+          console.error('GroupCreatedScreen: Error creating group:', error);
+          setStatusText('Error creating group');
+          setIsCreating(false);
+          setHasError(true);
+          alert(
+            'Error',
+            error.message || 'Failed to create group. Please try again.',
+            () => {
+              // Navigate to home on dismiss
+              router.replace('/(tabs)');
+            }
+          );
+          return;
+        }
+      } else if (legacyGroupId) {
+        // Legacy flow - group already created
+        setStatusText('Group created successfully!');
+        setIsCreating(false);
+      } else {
+        // No data - go home
+        console.warn('GroupCreatedScreen: No data provided');
+        router.replace('/(tabs)');
+        return;
+      }
+    };
+
+    // Start group creation
+    createGroupAsync();
+
+    // Start animation
     const timeoutId = setTimeout(() => {
-      console.log('GroupCreatedScreen: Starting animation now');
-      
-      // Start animation immediately - screen content should already be visible
-      // Animate progress bar from 0 to 100% over 3 seconds with smooth easing
       const animation = Animated.timing(progress, {
         toValue: 1,
         duration: 3000,
@@ -53,66 +147,34 @@ export default function GroupCreatedScreen() {
 
       animationRef.current = animation;
       
-      console.log('GroupCreatedScreen: Animation created, starting...');
       animation.start((finished) => {
-        console.log('GroupCreatedScreen: Animation callback, finished:', finished);
-        
-        if (!finished) {
-          console.log('GroupCreatedScreen: Animation was cancelled');
-          return;
-        }
-        
-        if (hasNavigated.current) {
-          console.log('GroupCreatedScreen: Already navigated, skipping');
-          return;
-        }
+        if (!finished || hasNavigated.current) return;
         
         hasNavigated.current = true;
-        console.log('GroupCreatedScreen: Animation complete, navigating to group-details');
         
-        // Navigate directly to group-details with refresh parameter
-        // Using push with a unique refresh timestamp ensures the screen reloads
+        // Wait a bit to ensure group is created
         setTimeout(() => {
-          if (hasNavigated.current === false) {
-            console.log('GroupCreatedScreen: Navigation check failed, aborting');
-            return;
-          }
-          
-          console.log('GroupCreatedScreen: Navigating to group-details with groupId:', groupId);
-          
-          try {
-            router.push({
+          const groupId = createdGroupId || legacyGroupId;
+          if (groupId) {
+            router.replace({
               pathname: '/(tabs)/group-details',
               params: {
                 groupId,
-                refresh: Date.now().toString(), // Unique timestamp forces refresh
-                timestamp: Date.now().toString(), // Additional unique key
-                fromCreated: 'true', // Flag to indicate we came from group creation
+                refresh: Date.now().toString(),
+                fromCreated: 'true',
               },
             });
-            console.log('GroupCreatedScreen: Navigation command executed successfully');
-          } catch (error) {
-            console.error('GroupCreatedScreen: Navigation failed, trying fallback:', error);
-            // Fallback navigation
+          } else {
+            // Group ID not ready yet, wait more
             setTimeout(() => {
-              router.replace({
-                pathname: '/(tabs)/group-details',
-                params: {
-                  groupId,
-                  refresh: Date.now().toString(),
-                  timestamp: Date.now().toString(),
-                  fromCreated: 'true',
-                },
-              });
-            }, 100);
+              router.replace('/(tabs)');
+            }, 3000);
           }
-        }, 200);
+        }, 500);
       });
     }, 150);
 
-    // Cleanup: stop animation and clear timeout if component unmounts
     return () => {
-      console.log('GroupCreatedScreen: Cleanup - stopping animation and clearing timeout');
       clearTimeout(timeoutId);
       if (animationRef.current) {
         animationRef.current.stop();
@@ -121,9 +183,41 @@ export default function GroupCreatedScreen() {
       hasNavigated.current = false;
       progress.setValue(0);
     };
-    // Include all params including timestamp in dependencies to ensure re-run on every navigation
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupId, timestamp]);
+  }, [groupName, timestamp]);
+
+  // Watch for createdGroupId changes to navigate
+  useEffect(() => {
+    if (createdGroupId && hasNavigated.current === false) {
+      console.log('GroupCreatedScreen: Group ID ready:', createdGroupId);
+    }
+  }, [createdGroupId]);
+
+  // Navigate when animation completes and group is ready
+  useEffect(() => {
+    const checkAndNavigate = () => {
+      if (createdGroupId && progress._value >= 0.95 && !hasNavigated.current) {
+        hasNavigated.current = true;
+        router.replace({
+          pathname: '/(tabs)/group-details',
+          params: {
+            groupId: createdGroupId,
+            refresh: Date.now().toString(),
+            fromCreated: 'true',
+          },
+        });
+      }
+    };
+
+    const listener = progress.addListener(({ value }) => {
+      if (value >= 0.95) {
+        checkAndNavigate();
+      }
+    });
+
+    return () => {
+      progress.removeListener(listener);
+    };
+  }, [createdGroupId, progress]);
 
   const progressWidth = progress.interpolate({
     inputRange: [0, 1],
@@ -132,38 +226,41 @@ export default function GroupCreatedScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      {/* Back button for iOS */}
+      <TouchableOpacity 
+        style={styles.backButton} 
+        onPress={handleBackPress}
+        activeOpacity={0.7}>
+        <IconSymbol name="xmark" size={20} color="#9BA1A6" />
+      </TouchableOpacity>
+
       <View style={styles.content}>
-        {/* Decorative Elements */}
-        {/* <View style={styles.decorativeContainer}>
-          <View style={styles.decorativeLeft}>
-            <IconSymbol name="checkmark.circle.fill" size={32} color="#4CAF50" />
-          </View>
-          <View style={styles.decorativeRight}>
-            <IconSymbol name="checkmark.circle.fill" size={32} color="#4CAF50" />
-          </View>
-        </View> */}
-
-        {/* Main Content Card */}
         <View style={styles.card}>
-          {/* Header Section */}
           <View style={styles.headerSection}>
-            <IconSymbol name="checkmark.circle.fill" size={64} color="#4CAF50" />
-            <Text style={styles.groupCreatedText}>Group Created</Text>
+            <IconSymbol 
+              name={hasError ? "xmark.circle.fill" : "checkmark.circle.fill"} 
+              size={64} 
+              color={hasError ? "#FF6B6B" : "#22C55E"} 
+            />
+            <Text style={styles.groupCreatedText}>
+              {hasError ? 'Error' : 'Creating Group'}
+            </Text>
+            {groupName && (
+              <Text style={styles.groupNameText}>{groupName}</Text>
+            )}
           </View>
 
-          {/* Progress Bar */}
           <View style={styles.progressContainer}>
             <View style={styles.progressBarBackground}>
               <Animated.View
                 style={[
                   styles.progressBarFill,
-                  {
-                    width: progressWidth,
-                  },
+                  { width: progressWidth },
+                  hasError && styles.progressBarError,
                 ]}
               />
             </View>
-            <Text style={styles.progressText}>Loading group details...</Text>
+            <Text style={styles.progressText}>{statusText}</Text>
           </View>
         </View>
       </View>
@@ -176,28 +273,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#011b3d',
   },
+  backButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-  },
-  decorativeContainer: {
-    position: 'absolute',
-    top: '15%',
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 32,
-    zIndex: 0,
-  },
-  decorativeLeft: {
-    transform: [{ rotate: '-15deg' }],
-    opacity: 0.5,
-  },
-  decorativeRight: {
-    transform: [{ rotate: '15deg' }],
-    opacity: 0.5,
   },
   card: {
     width: '100%',
@@ -226,6 +318,13 @@ const styles = StyleSheet.create({
     marginTop: 16,
     lineHeight: 36,
   },
+  groupNameText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginTop: 8,
+  },
   progressContainer: {
     width: '100%',
     marginTop: 8,
@@ -239,8 +338,11 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#22C55E',
     borderRadius: 3,
+  },
+  progressBarError: {
+    backgroundColor: '#FF6B6B',
   },
   progressText: {
     fontSize: 12,
@@ -250,4 +352,3 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 });
-

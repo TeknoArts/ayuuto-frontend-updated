@@ -684,26 +684,6 @@ export default function GroupDetailsScreen() {
           </View>
         </View>
 
-        {/* Manage Participants Button - show when group is missing participants and user can edit */}
-        {canEdit && !group.isOrderSet && !isParticipantsComplete && (
-          <TouchableOpacity
-            style={[styles.spinButton, styles.addParticipantsButton]}
-            onPress={() => {
-              if (!groupId) return;
-              router.push({
-                pathname: '/(tabs)/manage-participants',
-                params: {
-                  groupId,
-                  groupName: group.name,
-                  memberCount: (group.memberCount ?? 0).toString(),
-                },
-              });
-            }}
-            activeOpacity={0.8}>
-            <IconSymbol name="person.2.fill" size={20} color="#001a3c" />
-            <Text style={styles.spinButtonText}>{t('manageParticipants')}</Text>
-          </TouchableOpacity>
-        )}
 
         {/* Spin For Order Button - Only show if order is not set, user can edit, and participants complete */}
         {!group.isOrderSet && canEdit && isParticipantsComplete && (
@@ -806,7 +786,7 @@ export default function GroupDetailsScreen() {
                       onPress={() => participant.id && handlePaymentToggle(participant.id, true)}
                       disabled={paymentToggleParticipantId === participant.id}
                       activeOpacity={0.7}>
-                      <IconSymbol name="checkmark" size={14} color="#FFFFFF" />
+                      <IconSymbol name="checkmark" size={20} color="#FFFFFF" />
                     </TouchableOpacity>
                   </>
                 ) : (
@@ -1216,20 +1196,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   checkbox: {
-    width: 20,
-    height: 20,
+    width: 32,
+    height: 32,
     borderWidth: 2,
     borderColor: '#9BA1A6',
-    borderRadius: 4,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
   },
   checkboxChecked: {
-    width: 20,
-    height: 20,
+    width: 32,
+    height: 32,
     borderWidth: 0,
-    borderRadius: 4,
+    borderRadius: 6,
     backgroundColor: '#90EE90',
     alignItems: 'center',
     justifyContent: 'center',

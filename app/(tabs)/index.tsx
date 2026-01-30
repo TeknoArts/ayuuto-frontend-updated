@@ -535,10 +535,6 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.welcomeText}>{t('welcomeToAyuuto')}, {displayName}!</Text>
-            <Text style={styles.sloganText}>{t('organizeWithTrust')}</Text>
-          </View>
-          <View style={styles.flagButton}>
-            <Text style={styles.flagEmoji}>{language === 'so' ? '🇸🇴' : '🇬🇧'}</Text>
           </View>
         </View>
 
@@ -577,42 +573,43 @@ export default function HomeScreen() {
                     activeOpacity={0.7}>
                     <View style={styles.groupCardLeft}>
                       <Text style={styles.groupCardName}>{group.name.toUpperCase()}</Text>
-                      <View style={styles.groupCardDetails}>
-                        <IconSymbol name="dollarsign.circle.fill" size={14} color="#FFD700" />
-                        <Text style={styles.groupCardDetailsText}>
-                          {(() => {
-                            // Calculate total savings - use totalSavings if available, otherwise calculate from amountPerPerson
-                            const total = group.totalSavings ?? 
-                              ((group.amountPerPerson && group.memberCount) 
-                                ? group.amountPerPerson * group.memberCount 
-                                : 0);
-                            // Always show the amount (even if 0) and participant count
-                            return `${total} • ${group.memberCount} Participants`;
-                          })()}
-                        </Text>
-                      </View>
                     </View>
-                    <TouchableOpacity
-                      style={[
-                        styles.deleteButton,
-                        deletingGroupId === group.id && styles.deleteButtonDisabled
-                      ]}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        if (deletingGroupId !== group.id) {
-                          handleDeleteGroup(group.id, group.name);
-                        }
-                      }}
-                      activeOpacity={0.7}
-                      disabled={deletingGroupId === group.id}>
-                      {deletingGroupId === group.id ? (
-                        <View style={styles.deleteLoading}>
-                          <Text style={styles.deleteLoadingText}>...</Text>
-                        </View>
-                      ) : (
-                        <IconSymbol name="trash.fill" size={18} color="#FF6B6B" />
-                      )}
-                    </TouchableOpacity>
+                    <View style={styles.groupCardActions}>
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => {
+                          if (group.id) {
+                            router.push({
+                              pathname: '/(tabs)/edit-participants',
+                              params: { groupId: group.id, groupName: group.name }
+                            });
+                          }
+                        }}
+                        activeOpacity={0.7}>
+                        <IconSymbol name="pencil" size={18} color="#61a5fb" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.deleteButton,
+                          deletingGroupId === group.id && styles.deleteButtonDisabled
+                        ]}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          if (deletingGroupId !== group.id) {
+                            handleDeleteGroup(group.id, group.name);
+                          }
+                        }}
+                        activeOpacity={0.7}
+                        disabled={deletingGroupId === group.id}>
+                        {deletingGroupId === group.id ? (
+                          <View style={styles.deleteLoading}>
+                            <Text style={styles.deleteLoadingText}>...</Text>
+                          </View>
+                        ) : (
+                          <IconSymbol name="trash.fill" size={18} color="#FF6B6B" />
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </TouchableOpacity>
                 </View>
               )}
@@ -651,40 +648,7 @@ export default function HomeScreen() {
                     activeOpacity={0.7}>
                     <View style={styles.groupCardLeft}>
                       <Text style={styles.groupCardName}>{group.name.toUpperCase()}</Text>
-                      <View style={styles.groupCardDetails}>
-                        <IconSymbol name="dollarsign.circle.fill" size={14} color="#FFD700" />
-                        <Text style={styles.groupCardDetailsText}>
-                          {(() => {
-                            const total = group.totalSavings ??
-                              ((group.amountPerPerson && group.memberCount)
-                                ? group.amountPerPerson * group.memberCount
-                                : 0);
-                            return `${total} • ${group.memberCount} Participants`;
-                          })()}
-                        </Text>
-                      </View>
                     </View>
-                    {/* <TouchableOpacity
-                      style={[
-                        styles.deleteButton,
-                        deletingGroupId === group.id && styles.deleteButtonDisabled
-                      ]}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        if (deletingGroupId !== group.id) {
-                          handleDeleteGroup(group.id, group.name);
-                        }
-                      }}
-                      activeOpacity={0.7}
-                      disabled={deletingGroupId === group.id}>
-                      {deletingGroupId === group.id ? (
-                        <View style={styles.deleteLoading}>
-                          <Text style={styles.deleteLoadingText}>...</Text>
-                        </View>
-                      ) : (
-                        <IconSymbol name="trash.fill" size={18} color="#FF6B6B" />
-                      )}
-                    </TouchableOpacity> */}
                   </TouchableOpacity>
                 </View>
               )}
@@ -726,24 +690,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 8,
-  },
-  sloganText: {
-    fontSize: 12,
-    color: '#9BA1A6',
-    letterSpacing: 1,
-  },
-  flagButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#1a2332',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#2a3441',
-  },
-  flagEmoji: {
-    fontSize: 24,
   },
   newGroupButton: {
     backgroundColor: '#4CAF50',
@@ -823,20 +769,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFD700',
     letterSpacing: 1,
-    marginBottom: 8,
   },
-  groupCardDetails: {
+  groupCardActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
-  groupCardDetailsText: {
-    color: '#9BA1A6',
-    fontSize: 14,
+  editButton: {
+    padding: 8,
+    backgroundColor: 'rgba(97, 165, 251, 0.1)',
+    borderRadius: 8,
   },
   deleteButton: {
     padding: 8,
-    marginLeft: 12,
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    borderRadius: 8,
   },
   deleteButtonDisabled: {
     opacity: 0.5,

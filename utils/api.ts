@@ -20,7 +20,7 @@ const PRODUCTION_API_URL = 'http://104.248.117.205/api'; // DigitalOcean Droplet
 
 // Local Development Configuration
 const IS_PHYSICAL_DEVICE = true;
-const PHYSICAL_DEVICE_IP = '192.168.18.126'; // Update this to your computer's IP address
+const PHYSICAL_DEVICE_IP = '10.84.107.128'; // Update this to your computer's IP address
 const BACKEND_PORT = 5001;
 
 const getApiBaseUrl = () => {
@@ -167,12 +167,32 @@ export interface UserSummary {
 }
 
 // Create Group
-export async function createGroup(name: string, memberCount: number): Promise<Group> {
+export async function createGroup(
+  name: string, 
+  memberCount: number,
+  participants?: Array<{ name: string; email?: string | null }>,
+  amountPerPerson?: number,
+  collectionDate?: number
+): Promise<Group> {
   const headers = await getAuthHeaders();
+  
+  const body: any = { name, memberCount };
+  
+  // If participants provided, create full group in one call
+  if (participants && participants.length >= 2) {
+    body.participants = participants;
+    if (amountPerPerson && amountPerPerson > 0) {
+      body.amountPerPerson = amountPerPerson;
+    }
+    if (collectionDate) {
+      body.collectionDate = collectionDate;
+    }
+  }
+  
   const response = await fetchWithTimeout(`${API_BASE_URL}/groups`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ name, memberCount }),
+    body: JSON.stringify(body),
   });
 
   const json: ApiResponse<{ group: Group }> = await response.json();
@@ -329,6 +349,30 @@ export async function updatePaymentStatus(
   }
 
   return json.data.participant;
+}
+
+// Update Participant Emails
+export async function updateParticipantEmails(
+  groupId: string,
+  participants: Array<{ participantId: string; email: string }>
+): Promise<{ updatedParticipants: any[]; emailResults: any[] }> {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/groups/${groupId}/participants/emails`,
+    {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ participants }),
+    }
+  );
+
+  const json: ApiResponse<{ updatedParticipants: any[]; emailResults: any[] }> = await response.json();
+
+  if (!response.ok || !json.success || !json.data) {
+    throw new Error(json.message || 'Failed to update participant emails');
+  }
+
+  return json.data;
 }
 
 // Get User Groups
