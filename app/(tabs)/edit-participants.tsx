@@ -36,11 +36,11 @@ export default function EditParticipantsScreen() {
       setIsLoading(true);
       const group = await getGroupDetails(groupId);
       
-      // Map participants to email form
+      // Map participants to email form - use participant email or user email (for registered users)
       const participantEmails = group.participants.map((p: any) => ({
         id: p.id || p._id,
         name: p.name,
-        email: p.email || '',
+        email: (p.email || (p.user && p.user.email) || '').trim(),
       }));
       
       setParticipants(participantEmails);
@@ -153,6 +153,14 @@ export default function EditParticipantsScreen() {
           <Text style={styles.groupName}>{groupName?.toUpperCase() || 'GROUP'}</Text>
           <Text style={styles.subtitle}>Add email addresses to send invitations</Text>
 
+          {participants.length > 0 && (
+            <View style={styles.emailSummary}>
+              <Text style={styles.emailSummaryText}>
+                {participants.filter((p) => p.email).length} of {participants.length} participants have email
+              </Text>
+            </View>
+          )}
+
           <View style={styles.participantsList}>
             {participants.map((participant, index) => (
               <View key={participant.id} style={styles.participantCard}>
@@ -161,6 +169,12 @@ export default function EditParticipantsScreen() {
                     <Text style={styles.serialText}>{index + 1}</Text>
                   </View>
                   <Text style={styles.participantName}>{participant.name}</Text>
+                  {participant.email ? (
+                    <View style={styles.hasEmailBadge}>
+                      <IconSymbol name="checkmark.circle.fill" size={18} color="#22C55E" />
+                      <Text style={styles.hasEmailText}>Email</Text>
+                    </View>
+                  ) : null}
                 </View>
                 <View style={styles.emailInputContainer}>
                   <IconSymbol name="envelope.fill" size={18} color="#9BA1A6" style={styles.emailIcon} />
@@ -251,7 +265,18 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: '#9BA1A6',
+    marginBottom: 16,
+  },
+  emailSummary: {
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    borderRadius: 8,
+    padding: 12,
     marginBottom: 24,
+  },
+  emailSummaryText: {
+    fontSize: 14,
+    color: '#22C55E',
+    fontWeight: '500',
   },
   participantsList: {
     gap: 16,
@@ -283,9 +308,24 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   participantName: {
+    flex: 1,
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  hasEmailBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  hasEmailText: {
+    fontSize: 12,
+    color: '#22C55E',
+    fontWeight: '600',
   },
   emailInputContainer: {
     flexDirection: 'row',
