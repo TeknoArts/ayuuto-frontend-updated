@@ -230,11 +230,19 @@ export default function CollectionScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
-            {/* Header with Back Button */}
+            {/* Header with Back Button - go to add-participants (emails) with same wizard params */}
             <View style={styles.header}>
               <TouchableOpacity
                 style={styles.backButton}
-                onPress={() => router.back()}>
+                onPress={() => {
+                  const groupName = (params.groupName as string) || '';
+                  const memberCount = (params.memberCount as string) || '2';
+                  const participants = (params.participants as string) || '[]';
+                  router.replace({
+                    pathname: '/(tabs)/add-participants',
+                    params: { groupName, memberCount, participants, fromWizard: 'true' },
+                  });
+                }}>
                 <IconSymbol name="chevron.left" size={20} color="#61a5fb" />
                 <Text style={styles.backText}>{t('back')}</Text>
               </TouchableOpacity>

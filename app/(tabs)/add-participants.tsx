@@ -27,6 +27,7 @@ type ParticipantInput = {
 
 export default function AddParticipantsScreen() {
   const params = useLocalSearchParams();
+  const groupNameFromParams = (params.groupName as string) || '';
   const memberCount = parseInt(params.memberCount as string) || 2;
   
   const [participants, setParticipants] = useState<ParticipantInput[]>([]);
@@ -34,13 +35,30 @@ export default function AddParticipantsScreen() {
   const [openSlotIndex, setOpenSlotIndex] = useState<number | null>(null);
   const [emailInput, setEmailInput] = useState('');
   
-  // Reset form when screen comes into focus
+  // Initialize participants: from params when returning from collection, otherwise empty slots by member count
   useFocusEffect(
     useCallback(() => {
-      // Initialize participants array based on member count
-      setParticipants(Array(memberCount).fill({ label: '' }));
+      const participantsParam = params.participants as string | undefined;
+      let initial: ParticipantInput[] = Array(memberCount).fill({ label: '' });
+      if (participantsParam) {
+        try {
+          const parsed = JSON.parse(participantsParam) as { email?: string; name?: string }[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            initial = parsed.map((p) => ({
+              label: p.email || p.name || '',
+              email: p.email || null,
+            }));
+            // Pad or trim to memberCount
+            while (initial.length < memberCount) initial.push({ label: '' });
+            if (initial.length > memberCount) initial = initial.slice(0, memberCount);
+          }
+        } catch (_) {
+          // keep empty slots
+        }
+      }
+      setParticipants(initial);
       setFocusedIndex(null);
-    }, [memberCount])
+    }, [memberCount, params.participants])
   );
   
   // Initialize on mount if not already set
@@ -123,7 +141,12 @@ export default function AddParticipantsScreen() {
             <View style={styles.header}>
               <TouchableOpacity
                 style={styles.backButton}
-                onPress={() => router.back()}>
+                onPress={() => {
+                  router.replace({
+                    pathname: '/(tabs)/newgroup',
+                    params: { groupName: groupNameFromParams, memberCount: String(memberCount) },
+                  });
+                }}>
                 <IconSymbol name="chevron.left" size={20} color="#61a5fb" />
                 <Text style={styles.backText}>BACK</Text>
               </TouchableOpacity>

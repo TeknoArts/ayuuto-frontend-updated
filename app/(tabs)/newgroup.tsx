@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { alert } from '@/utils/alert';
@@ -9,19 +9,27 @@ import { useI18n } from '@/utils/i18n';
 
 export default function NewGroupScreen() {
   const { t } = useI18n();
+  const params = useLocalSearchParams();
   const [groupName, setGroupName] = useState('');
   const [memberCount, setMemberCount] = useState('');
   const [isGroupNameFocused, setIsGroupNameFocused] = useState(false);
   const [isMemberCountFocused, setIsMemberCountFocused] = useState(false);
 
-  // Reset form when screen comes into focus
+  // When returning from add-participants (params passed), pre-fill form; otherwise reset
   useFocusEffect(
     useCallback(() => {
-      setGroupName('');
-      setMemberCount('');
+      const nameFromParams = (params.groupName as string) || '';
+      const countFromParams = (params.memberCount as string) || '';
+      if (nameFromParams || countFromParams) {
+        setGroupName(nameFromParams);
+        setMemberCount(countFromParams || '2');
+      } else {
+        setGroupName('');
+        setMemberCount('');
+      }
       setIsGroupNameFocused(false);
       setIsMemberCountFocused(false);
-    }, [])
+    }, [params.groupName, params.memberCount])
   );
 
   const isFormValid = groupName.trim().length > 0 && memberCount.trim().length > 0;

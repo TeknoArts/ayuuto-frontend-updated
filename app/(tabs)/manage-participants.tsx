@@ -479,16 +479,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   doneButton: {
-    backgroundColor: '#152b45',
+    backgroundColor: '#FFD700',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#2a3441',
   },
   doneButtonText: {
-    color: '#FFFFFF',
+    color: '#011b3d',
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 1,
