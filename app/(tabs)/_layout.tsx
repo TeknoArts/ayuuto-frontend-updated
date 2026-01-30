@@ -128,6 +128,12 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="edit-participants"
+          options={{
+            href: null, // Hide from tab bar
+          }}
+        />
+        <Tabs.Screen
           name="privacy-policy"
           options={{
             href: null, // Hide from tab bar
