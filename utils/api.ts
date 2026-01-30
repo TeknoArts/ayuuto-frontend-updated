@@ -145,8 +145,9 @@ export interface Participant {
 
 export interface GroupLogEntry {
   id: string;
-  type: 'payment';
+  type: 'payment' | 'group_created' | 'spin';
   groupId: string;
+  description?: string | null;
   participantId?: string | null;
   participantName?: string | null;
   amount?: number;

@@ -9,6 +9,9 @@
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "build:ios": "eas build --platform ios --non-interactive",
+    "build:ios:preview": "eas build --platform ios --profile preview --non-interactive",
+    "build:ios:production": "eas build --platform ios --profile production --non-interactive",
     "web": "expo start --web",
     "lint": "expo lint",
     "postinstall": "patch-package"

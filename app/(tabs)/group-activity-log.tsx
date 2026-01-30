@@ -146,6 +146,15 @@ export default function GroupActivityLogScreen() {
                 : '';
               const relativeTime = timestamp ? formatDate(timestamp) : '';
 
+              const isActivity = log.type === 'group_created' || log.type === 'spin';
+              const mainText = isActivity
+                ? (log.description || (log.type === 'group_created' ? 'Admin created group' : 'Spin for order was clicked'))
+                : (log.description ||
+                    (log.participantName
+                      ? `${log.participantName.includes('@') ? log.participantName : formatParticipantName(log.participantName)} paid`
+                      : 'Payment recorded') +
+                      (typeof log.roundNumber === 'number' ? ` • Round ${log.roundNumber}` : ''));
+
               return (
                 <View key={log.id || index} style={styles.logItem}>
                   <View style={styles.logLeft}>
@@ -157,18 +166,11 @@ export default function GroupActivityLogScreen() {
                       />
                     </View>
                     <View style={styles.logTextContainer}>
-                      <Text style={styles.logMainText}>
-                        {log.participantName
-                          ? `${log.participantName.includes('@') ? log.participantName : formatParticipantName(log.participantName)} paid`
-                          : 'Payment recorded'}
-                        {typeof log.roundNumber === 'number'
-                          ? ` • Round ${log.roundNumber}`
-                          : ''}
-                      </Text>
-                      {typeof log.amount === 'number' && log.amount > 0 && (
+                      <Text style={styles.logMainText}>{mainText}</Text>
+                      {!isActivity && typeof log.amount === 'number' && log.amount > 0 && (
                         <Text style={styles.logSubText}>Amount: ${log.amount}</Text>
                       )}
-                      {log.paidBy && (
+                      {!isActivity && log.paidBy && (
                         <Text style={styles.logSubText}>
                           Paid by: {log.paidBy.name}
                         </Text>
