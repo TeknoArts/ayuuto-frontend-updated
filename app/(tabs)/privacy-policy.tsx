@@ -88,7 +88,7 @@ export default function PrivacyPolicyScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>4. Data Storage and Hosting</Text>
           <Text style={styles.sectionText}>
-            All data is securely stored on servers hosted by Railway.
+            All data is securely stored on cloud servers (DigitalOcean).
           </Text>
           <Text style={styles.sectionText}>
             We take reasonable technical and organizational measures to protect your information from unauthorized access, loss, or misuse.
@@ -102,7 +102,7 @@ export default function PrivacyPolicyScreen() {
             Ayuuto App does not share your personal data with third parties.
           </Text>
           <Text style={styles.sectionText}>
-            No external tools or services process user data beyond our hosting provider (Railway).
+            No external tools or services process user data beyond our cloud hosting provider.
           </Text>
         </View>
 
