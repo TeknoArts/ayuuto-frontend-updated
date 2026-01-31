@@ -11,7 +11,6 @@ export default function SignUpScreen() {
   const { t } = useI18n();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -49,7 +48,6 @@ export default function SignUpScreen() {
         id: user.id,
         name: user.name,
         email: user.email,
-        phone,
       });
 
       // Initialize push notifications after successful sign up
@@ -115,20 +113,6 @@ export default function SignUpScreen() {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-
-            {/* Phone Input */}
-            <View style={styles.inputContainer}>
-              <IconSymbol name="phone.fill" size={20} color="#9BA1A6" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Phone Number"
-                placeholderTextColor="#9BA1A6"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
                 autoCorrect={false}
               />
             </View>
