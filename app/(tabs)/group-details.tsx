@@ -197,25 +197,41 @@ export default function GroupDetailsScreen() {
     }
   }, [groupId, group]);
 
-  // Reload when screen comes into focus (useful when navigating back) - silent reload
-  // Skip if we just handled a refresh param to avoid duplicate reloads
+  // Auto-refresh interval for participants to see admin actions (poll every 5 seconds)
+  const AUTO_REFRESH_INTERVAL_MS = 5000;
+
+  // Stop polling when group is completed - no further updates expected
+  const shouldStopPolling =
+    group?.status === 'COMPLETED' ||
+    (group as { isCompleted?: boolean })?.isCompleted === true ||
+    (group?.participants?.length &&
+      group.participants.every((p) => p.hasReceivedPayment === true));
+
+  // Reload when screen comes into focus + poll for updates (participants see admin actions)
   useFocusEffect(
     useCallback(() => {
-      if (groupId) {
-        const refreshParam = params.refresh as string;
-        // Only reload on focus if there's no refresh param (to avoid duplicate calls)
-        if (!refreshParam) {
-          console.log('GroupDetailsScreen: Screen focused, reloading group details (silent)');
-          // Add a small delay to ensure previous navigation is complete
-          const timer = setTimeout(() => {
-            loadGroupDetails(false); // Silent reload
-          }, 200);
-          return () => clearTimeout(timer);
-        } else {
-          console.log('GroupDetailsScreen: Screen focused but refresh param present, skipping reload');
+      if (!groupId) return;
+
+      const refreshParam = params.refresh as string;
+      if (!refreshParam) {
+        const timer = setTimeout(() => {
+          loadGroupDetails(false);
+        }, 200);
+
+        // Poll only while group is active - stop when Ayuuto is completed
+        let pollInterval: ReturnType<typeof setInterval> | null = null;
+        if (!shouldStopPolling) {
+          pollInterval = setInterval(() => {
+            loadGroupDetails(false);
+          }, AUTO_REFRESH_INTERVAL_MS);
         }
+
+        return () => {
+          clearTimeout(timer);
+          if (pollInterval) clearInterval(pollInterval);
+        };
       }
-    }, [groupId, loadGroupDetails, params.refresh])
+    }, [groupId, loadGroupDetails, params.refresh, shouldStopPolling])
   );
 
   const handleSpin = async () => {

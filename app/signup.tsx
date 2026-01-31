@@ -8,6 +8,7 @@ import { alert } from '@/utils/alert';
 import { useI18n } from '@/utils/i18n';
 
 export default function SignUpScreen() {
+  const { t } = useI18n();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
