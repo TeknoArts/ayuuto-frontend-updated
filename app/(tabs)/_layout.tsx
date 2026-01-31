@@ -104,6 +104,12 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="spin-loading"
+          options={{
+            href: null, // Hide from tab bar
+          }}
+        />
+        <Tabs.Screen
           name="next-round"
           options={{
             href: null, // Hide from tab bar

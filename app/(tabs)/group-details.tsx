@@ -9,7 +9,6 @@ import { LoadingBar } from '@/components/ui/loading-bar';
 import {
   getGroupDetails,
   getGroupLogs,
-  spinForOrder,
   enableGroupSharing,
   getGroupShareLink,
   type Group,
@@ -236,46 +235,18 @@ export default function GroupDetailsScreen() {
 
   const handleSpin = async () => {
     if (isSpinning || !group || group.isOrderSet) return;
-    
+
     setIsSpinning(true);
-    
-    try {
-      const updatedGroup = await spinForOrder(groupId);
-      if (updatedGroup) {
-        setGroup(updatedGroup);
 
-        // After spinning, show a loading/animation screen similar to Next Round
-        const participants = updatedGroup.participants || [];
-        const sorted = updatedGroup.isOrderSet
-          ? [...participants].sort((a, b) => (a.order || 0) - (b.order || 0))
-          : participants;
-        const currentIndex = updatedGroup.currentRecipientIndex || 0;
-        const current = sorted[currentIndex];
-        const nextRecipientName = formatParticipantName(current?.name || '');
-        const roundNumber = (currentIndex + 1).toString();
+    // Navigate immediately to premium spin loading screen (API runs there)
+    // Use replace so the new spin screen always shows; no stack/back confusion
+    // Pass _ts to force fresh mount on each spin (fixes 2nd group not showing animation)
+    router.replace({
+      pathname: '/(tabs)/spin-loading',
+      params: { groupId, _ts: Date.now().toString() },
+    });
 
-        router.push({
-          pathname: '/(tabs)/next-round',
-          params: {
-            groupId,
-            nextRecipientName,
-            roundNumber,
-            mode: 'spin',
-            timestamp: Date.now().toString(), // Force remount per spin
-          },
-        });
-      } else {
-        throw new Error('Failed to spin for order');
-      }
-    } catch (error: any) {
-      console.error('Error spinning for order:', error);
-      alert(
-        'Error',
-        error?.message || 'Failed to spin for order. Please try again.'
-      );
-    } finally {
-      setIsSpinning(false);
-    }
+    setIsSpinning(false);
   };
 
   const handleNextRound = useCallback(async () => {
