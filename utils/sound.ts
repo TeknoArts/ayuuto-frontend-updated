@@ -27,14 +27,23 @@ export async function playCompletionSound(): Promise<void> {
     };
 
     let hasPlayed = false;
+    const safePlay = (): void => {
+      try {
+        player.seekTo(0);
+        player.play();
+      } catch (err) {
+        // Session activation can fail (e.g. iOS background, audio conflict)
+        console.warn('Completion sound play failed:', err);
+      }
+    };
+
     player.addListener('playbackStatusUpdate', (status) => {
       if (status.didJustFinish) {
         removeWhenDone();
       }
       if (status.isLoaded && !hasPlayed) {
         hasPlayed = true;
-        player.seekTo(0);
-        player.play();
+        safePlay();
       }
     });
 
@@ -42,8 +51,7 @@ export async function playCompletionSound(): Promise<void> {
     const fallback = setTimeout(() => {
       if (!hasPlayed && player.isLoaded) {
         hasPlayed = true;
-        player.seekTo(0);
-        player.play();
+        safePlay();
       }
     }, 100);
     setTimeout(removeWhenDone, 5000);
