@@ -33,21 +33,11 @@ export default function AddParticipantsScreen() {
   ]);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
-  // When returning from next screen, restore participants
+  // Reset to empty fields every time screen is focused - do not load/restore names by default
   useFocusEffect(
     useCallback(() => {
-      const participantsParam = params.participants as string | undefined;
-      if (participantsParam) {
-        try {
-          const parsed = JSON.parse(participantsParam) as { name: string }[];
-          if (Array.isArray(parsed) && parsed.length >= 2) {
-            setParticipants(parsed);
-          }
-        } catch (_) {
-          // keep default 2 empty participants
-        }
-      }
-    }, [params.participants])
+      setParticipants([{ name: '' }, { name: '' }]);
+    }, [])
   );
 
   const handleAddParticipant = () => {
