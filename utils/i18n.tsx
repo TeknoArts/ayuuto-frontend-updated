@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 
 export type Language = 'en' | 'so';
 
@@ -113,7 +113,7 @@ const translations = {
     createAccountButton: 'CREATE ACCOUNT',
     
     // Home Screen
-    welcomeToAyuuto: 'Welcome to Ayuuto',
+    welcomeToAyuuto: 'Welcome to Ayuuto App',
     organizeWithTrust: 'ORGANIZE WITH TRUST, CELEBRATE TOGETHER.',
     myAyuutos: 'MY AYUUTOS',
     dontManageGroups: "YOU DON'T MANAGE ANY GROUPS YET.",
@@ -313,7 +313,7 @@ const translations = {
     loading: 'Waa la helayaa...',
     
     // Group Details
-    manageParticipants: 'MAAMUL XUBNEED',
+    manageParticipants: 'MAAMUL daadka',
     addParticipant: 'Ku Dar Xubne',
     addParticipantSlots: 'KU DAR XUBNE',
     slotsLeft: 'meel',
