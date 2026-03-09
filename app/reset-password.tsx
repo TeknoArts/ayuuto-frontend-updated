@@ -33,40 +33,40 @@ export default function ResetPasswordScreen() {
   const handleResetPassword = async () => {
     if (!email) {
       alert(
-        t('emailRequired'),
-        t('pleaseEnterEmail')
+        t('Email Required'),
+        t('Please enter your email address.')
       );
       return;
     }
 
     if (!verificationToken) {
       alert(
-        t('verificationTokenMissing'),
-        t('verificationTokenMissingMessage')
+        t('Verification Token Missing'),
+        t('Verification token is missing. Please verify OTP again.')
       );
       return;
     }
 
     if (!newPassword || !confirmPassword) {
       alert(
-        t('passwordRequired'),
-        t('pleaseEnterPassword')
+        t('Password Required'),
+        t('Please enter and confirm your new password.')
       );
       return;
     }
 
     if (newPassword.length < 6) {
       alert(
-        t('passwordTooShort'),
-        t('passwordMinLength')
+        t('Password Too Short'),
+        t('Password must be at least 6 characters long.')
       );
       return;
     }
 
     if (newPassword !== confirmPassword) {
       alert(
-        t('passwordMismatch'),
-        t('passwordsDoNotMatch')
+        t('Passwords Do Not Match'),
+        t('Passwords do not match. Please try again.')
       );
       return;
     }
@@ -90,7 +90,7 @@ export default function ResetPasswordScreen() {
     } catch (err: any) {
       alert(
         t('resetFailed'),
-        err?.message || t('unableToResetPassword')
+        err?.message || t('Unable to Reset Password')
       );
     } finally {
       setIsResetting(false);
@@ -131,14 +131,14 @@ export default function ResetPasswordScreen() {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <Text style={styles.logoText}>AYUUTO</Text>
-            <Text style={styles.tagline}>{t('organizeWithTrust')}</Text>
+            <Text style={styles.tagline}>{t('Organize With Trust')}</Text>
           </View>
 
           {/* Header */}
           <View style={styles.headerContainer}>
-            <Text style={styles.title}>{t('changePassword')}</Text>
+            <Text style={styles.title}>{t('Change Password')}</Text>
             <Text style={styles.subtitle}>
-              {t('createNewPassword')}
+              {t('Create New Password')}
             </Text>
           </View>
 
@@ -146,7 +146,7 @@ export default function ResetPasswordScreen() {
             <View style={styles.successContainer}>
               <IconSymbol name="checkmark.circle.fill" size={24} color="#4CAF50" />
               <Text style={styles.successText}>
-                {t('passwordChangedSuccess')}
+                {t('Password Changed Successfully')}
               </Text>
             </View>
           )}
@@ -156,7 +156,7 @@ export default function ResetPasswordScreen() {
             <IconSymbol name="envelope.fill" size={20} color="#9BA1A6" style={styles.inputIcon} />
             <TextInput
               style={[styles.input, styles.inputDisabled]}
-              placeholder={t('emailOrPhone')}
+              placeholder={t('Email')}
               placeholderTextColor="#9BA1A6"
               value={email}
               editable={false}
@@ -168,7 +168,7 @@ export default function ResetPasswordScreen() {
             <IconSymbol name="lock.fill" size={20} color="#9BA1A6" style={styles.inputIcon} />
             <TextInput
               style={[styles.input, styles.passwordInput]}
-              placeholder={t('newPassword')}
+              placeholder={t('New Password')}
               placeholderTextColor="#9BA1A6"
               value={newPassword}
               onChangeText={(text) => {
@@ -196,7 +196,7 @@ export default function ResetPasswordScreen() {
             <IconSymbol name="lock.fill" size={20} color="#9BA1A6" style={styles.inputIcon} />
             <TextInput
               style={[styles.input, styles.passwordInput]}
-              placeholder={t('confirmNewPassword')}
+              placeholder={t('Confirm New Password')}
               placeholderTextColor="#9BA1A6"
               value={confirmPassword}
               onChangeText={(text) => {
@@ -300,6 +300,12 @@ const styles = StyleSheet.create({
     color: '#FF6B6B',
     marginTop: 16,
     marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#9BA1A6',
+    textAlign: 'center',
+    marginBottom: 24,
   },
   successContainer: {
     flexDirection: 'row',

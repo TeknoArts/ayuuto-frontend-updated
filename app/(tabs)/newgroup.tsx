@@ -1,64 +1,113 @@
 import { useState, useCallback } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { alert } from '@/utils/alert';
+import { alert, confirm } from '@/utils/alert';
 import { useI18n } from '@/utils/i18n';
 
 export default function NewGroupScreen() {
   const { t } = useI18n();
+  const params = useLocalSearchParams();
   const [groupName, setGroupName] = useState('');
-  const [memberCount, setMemberCount] = useState('');
+  const [amount, setAmount] = useState('');
+  const [collectionDate, setCollectionDate] = useState('');
   const [isGroupNameFocused, setIsGroupNameFocused] = useState(false);
-  const [isMemberCountFocused, setIsMemberCountFocused] = useState(false);
+  const [isAmountFocused, setIsAmountFocused] = useState(false);
+  const [isCollectionDateFocused, setIsCollectionDateFocused] = useState(false);
 
-  // Reset form when screen comes into focus
+  // When returning from next screen (params passed), pre-fill form; otherwise reset
   useFocusEffect(
     useCallback(() => {
-      setGroupName('');
-      setMemberCount('');
+      const nameFromParams = (params.groupName as string) || '';
+      const amountFromParams = (params.amount as string) || '';
+      const dateFromParams = (params.collectionDate as string) || '';
+      if (nameFromParams || amountFromParams || dateFromParams) {
+        setGroupName(nameFromParams);
+        setAmount(amountFromParams);
+        setCollectionDate(dateFromParams);
+      } else {
+        setGroupName('');
+        setAmount('');
+        setCollectionDate('');
+      }
       setIsGroupNameFocused(false);
-      setIsMemberCountFocused(false);
-    }, [])
+      setIsAmountFocused(false);
+      setIsCollectionDateFocused(false);
+    }, [params.groupName, params.amount, params.collectionDate])
   );
 
-  const isFormValid = groupName.trim().length > 0 && memberCount.trim().length > 0;
+  const isFormValid = groupName.trim().length > 0 && 
+                      amount.trim().length > 0 && 
+                      collectionDate.trim().length > 0;
 
-  const handleIncrement = () => {
-    const currentValue = parseInt(memberCount) || 2;
-    const newValue = Math.min(currentValue + 1, 100);
-    setMemberCount(newValue.toString());
-  };
+  // Check if user has entered any data
+  const hasData = groupName.trim().length > 0 || 
+                  amount.trim().length > 0 || 
+                  collectionDate.trim().length > 0;
 
-  const handleDecrement = () => {
-    const currentValue = parseInt(memberCount) || 2;
-    const newValue = Math.max(currentValue - 1, 2);
-    setMemberCount(newValue.toString());
-  };
+  // Handle back press with confirmation if data entered
+  const handleBackPress = useCallback(() => {
+    if (hasData) {
+      confirm(
+        'Leave?',
+        'Are you sure you want to leave? Your changes will be lost.',
+        () => {
+          // User confirmed - go to home
+          router.replace('/(tabs)');
+        },
+        () => {
+          // User cancelled - do nothing
+        }
+      );
+      return true; // Prevent default back action
+    }
+    // No data entered, just go back
+    router.replace('/(tabs)');
+    return true;
+  }, [hasData]);
+
+  // Handle Android hardware back button
+  useFocusEffect(
+    useCallback(() => {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+      return () => backHandler.remove();
+    }, [handleBackPress])
+  );
 
   const handleNext = () => {
     if (!isFormValid) {
       return;
     }
     
-    // Validate member count - must be at least 2
-    const count = parseInt(memberCount);
-    if (count < 2) {
+    // Validate amount - must be positive
+    const amountNum = parseFloat(amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
       alert(
-        'Invalid Member Count',
-        'At least 2 members are required to create a group.'
+        'Invalid Amount',
+        'Please enter a valid amount greater than 0.'
       );
       return;
     }
     
-    // Step 2 in creation flow: configure participants for this group (no API call yet).
+    // Validate collection date - must be between 1-31
+    const dateNum = parseInt(collectionDate);
+    if (isNaN(dateNum) || dateNum < 1 || dateNum > 31) {
+      alert(
+        'Invalid Collection Date',
+        'Collection date must be between 1 and 31.'
+      );
+      return;
+    }
+    
+    // Navigate to next screen (add participants or member count selection)
     router.push({
       pathname: '/(tabs)/add-participants',
       params: {
         groupName,
-        memberCount,
+        amount,
+        collectionDate,
         fromWizard: 'true',
       },
     });
@@ -74,7 +123,7 @@ export default function NewGroupScreen() {
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => router.back()}>
+              onPress={handleBackPress}>
               <IconSymbol name="chevron.left" size={20} color="#61a5fb" />
               <Text style={styles.backText}>{t('back')}</Text>
             </TouchableOpacity>
@@ -87,7 +136,7 @@ export default function NewGroupScreen() {
           <View style={styles.form}>
             {/* Group Name Input */}
             <View style={styles.inputSection}>
-              <Text style={styles.label}>{t('groupName')}</Text>
+              <Text style={styles.label}>GROUP NAME</Text>
               <View style={[
                 styles.inputContainer,
                 isGroupNameFocused && styles.inputContainerFocused
@@ -106,74 +155,82 @@ export default function NewGroupScreen() {
               </View>
             </View>
 
-            {/* Member Count Input */}
+            {/* Amount Input */}
             <View style={styles.inputSection}>
-              <Text style={styles.label}>{t('memberCount')}</Text>
+              <Text style={styles.label}>AMOUNT</Text>
               <View style={[
-                styles.inputContainerNoBorder,
-                isMemberCountFocused && styles.inputContainerFocused
+                styles.inputContainer,
+                isAmountFocused && styles.inputContainerFocused
               ]}>
                 <TextInput
                   style={styles.input}
-                  placeholder="2-100"
+                  placeholder="e.g. 1000"
                   placeholderTextColor="#9BA1A6"
-                  value={memberCount}
+                  value={amount}
+                  onChangeText={(value) => {
+                    // Only allow numeric input with optional decimal
+                    const numericValue = value.replace(/[^0-9.]/g, '');
+                    // Prevent multiple decimal points
+                    const parts = numericValue.split('.');
+                    if (parts.length > 2) {
+                      return;
+                    }
+                    setAmount(numericValue);
+                  }}
+                  onFocus={() => setIsAmountFocused(true)}
+                  onBlur={() => setIsAmountFocused(false)}
+                  keyboardType="decimal-pad"
+                  autoCorrect={false}
+                />
+              </View>
+            </View>
+
+            {/* Collection Date Input */}
+            <View style={styles.inputSection}>
+              <Text style={styles.label}>COLLECTION DATE</Text>
+              <View style={[
+                styles.inputContainer,
+                isCollectionDateFocused && styles.inputContainerFocused
+              ]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Day of month (1-31)"
+                  placeholderTextColor="#9BA1A6"
+                  value={collectionDate}
                   onChangeText={(value) => {
                     // Only allow numeric input
                     const numericValue = value.replace(/[^0-9]/g, '');
-                    setMemberCount(numericValue);
-                    
-                    // Show alert if user enters 1
-                    if (numericValue === '1') {
-                      alert(
-                        t('invalidMemberCount'),
-                        t('atLeastTwoMembers')
-                      );
-                      // Reset to minimum 2
-                      setMemberCount('2');
+                    // Limit to 2 digits
+                    if (numericValue.length <= 2) {
+                      setCollectionDate(numericValue);
                     }
                   }}
-                  onFocus={() => setIsMemberCountFocused(true)}
-                  onBlur={() => setIsMemberCountFocused(false)}
+                  onFocus={() => setIsCollectionDateFocused(true)}
+                  onBlur={() => setIsCollectionDateFocused(false)}
                   keyboardType="number-pad"
                   autoCorrect={false}
+                  maxLength={2}
                 />
-                {isMemberCountFocused && (
-                  <View style={styles.stepperContainer}>
-                    <TouchableOpacity
-                      style={styles.stepperButton}
-                      onPress={handleIncrement}
-                      activeOpacity={0.7}>
-                      <IconSymbol name="chevron.up" size={12} color="#FFFFFF" />
-                    </TouchableOpacity>
-                    <View style={styles.stepperDivider} />
-                    <TouchableOpacity
-                      style={styles.stepperButton}
-                      onPress={handleDecrement}
-                      activeOpacity={0.7}>
-                      <IconSymbol name="chevron.down" size={12} color="#FFFFFF" />
-                    </TouchableOpacity>
-                  </View>
-                )}
               </View>
+            </View>
+
             {/* Next Button */}
             <TouchableOpacity
               style={[
-                styles.nextButton,
-                isFormValid && styles.nextButtonActive
+                styles.nextButtonActive,
+                !isFormValid && styles.nextButton
               ]}
               onPress={handleNext}
               activeOpacity={0.8}
               disabled={!isFormValid}>
               <Text
                 style={[
-                  styles.nextButtonText,
-                  isFormValid && styles.nextButtonTextActive,
+                  styles.nextButtonTextActive,
+                  !isFormValid && styles.nextButtonText,
                 ]}>
                 {t('next')}
               </Text>
             </TouchableOpacity>
-            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -241,45 +298,11 @@ const styles = StyleSheet.create({
   inputContainerFocused: {
     borderColor: '#FFD700',
   },
-  inputContainerNoBorder: {
-    backgroundColor: 'rgb(0 10 26)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    minHeight: 56,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 25,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   input: {
     color: '#FFFFFF',
     fontSize: 16,
     paddingVertical: 16,
     flex: 1,
-  },
-  stepperContainer: {
-    backgroundColor: '#2a3441',
-    borderRadius: 8,
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-    width: 32,
-    height: 40,
-  },
-  stepperButton: {
-    flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-  },
-  stepperDivider: {
-    width: '80%',
-    height: 1,
-    backgroundColor: '#1a2332',
   },
   nextButton: {
     backgroundColor: '#152b45',
@@ -293,6 +316,11 @@ const styles = StyleSheet.create({
   nextButtonActive: {
     backgroundColor: '#FFD700',
     borderColor: '#FFD700',
+    borderRadius: 12,
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
   nextButtonText: {
     color: '#67758a',
@@ -302,6 +330,9 @@ const styles = StyleSheet.create({
   },
   nextButtonTextActive: {
     color: '#000000',
+    fontSize: 18,
+    fontWeight: 'bold',
+    letterSpacing: 1.5,
   },
   errorText: {
     color: '#FF6B6B',

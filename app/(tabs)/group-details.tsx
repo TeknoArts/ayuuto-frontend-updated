@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Share, Linking } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, Text, ScrollView, TouchableOpacity, Share, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -9,7 +9,6 @@ import { LoadingBar } from '@/components/ui/loading-bar';
 import {
   getGroupDetails,
   getGroupLogs,
-  spinForOrder,
   enableGroupSharing,
   getGroupShareLink,
   type Group,
@@ -20,6 +19,7 @@ import { getUserData, UserData } from '@/utils/auth';
 import { alert } from '@/utils/alert';
 import { useI18n } from '@/utils/i18n';
 import { formatParticipantName } from '@/utils/participant';
+import { playCompletionSoundIfNeeded } from '@/utils/sound';
 
 export default function GroupDetailsScreen() {
   const { t } = useI18n();
@@ -29,13 +29,22 @@ export default function GroupDetailsScreen() {
   
   const [group, setGroup] = useState<Group | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
+  const [isStartingNextRound, setIsStartingNextRound] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [user, setUser] = useState<UserData | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [logs, setLogs] = useState<GroupLogEntry[]>([]);
   const [isLogsLoading, setIsLogsLoading] = useState(false);
+  const [paymentToggleParticipantId, setPaymentToggleParticipantId] = useState<string | null>(null);
   const isLoadingRef = useRef(false);
+  const isStartingNextRoundRef = useRef(false);
+  const hasSeenGroupNotCompletedRef = useRef(false);
+
+  // Reset "saw group not completed" when switching to a different group
+  useEffect(() => {
+    hasSeenGroupNotCompletedRef.current = false;
+  }, [groupId]);
 
   // Load user data
   useEffect(() => {
@@ -65,36 +74,48 @@ export default function GroupDetailsScreen() {
       if (isInitialLoad || showLoading) {
         setIsLoading(true);
       }
-      setIsLogsLoading(true);
-
-      const [groupData, logsData] = await Promise.all([
-        getGroupDetails(groupId),
-        getGroupLogs(groupId),
-      ]);
-
+      // Load group details first to check if user is owner
+      const groupData = await getGroupDetails(groupId);
+      
       if (groupData) {
         setGroup(groupData);
         
         // Check if current user is the owner
+        let userIsOwner = false;
         if (user && groupData.createdBy) {
           // Handle null createdBy (deleted user)
           if (typeof groupData.createdBy === 'object' && (!groupData.createdBy.id || groupData.createdBy.id === null)) {
-            setIsOwner(false);
+            userIsOwner = false;
           } else {
             const createdById =
               typeof groupData.createdBy === 'object'
               ? groupData.createdBy.id 
               : groupData.createdBy;
             const userId = user.id;
-            const userIsOwner =
+            userIsOwner =
               createdById?.toString() === userId?.toString() || createdById === userId;
-            setIsOwner(userIsOwner);
           }
         }
-      }
-
-      if (logsData) {
-        setLogs(logsData);
+        setIsOwner(userIsOwner);
+        
+        // Only load logs if user is NOT the owner (participants only)
+        if (!userIsOwner) {
+          setIsLogsLoading(true);
+          try {
+            const logsData = await getGroupLogs(groupId);
+            if (logsData) {
+              setLogs(logsData);
+            }
+          } catch (logError) {
+            console.error('Error loading group logs:', logError);
+          } finally {
+            setIsLogsLoading(false);
+          }
+        } else {
+          // Owner: don't load logs, set empty array
+          setLogs([]);
+          setIsLogsLoading(false);
+        }
       }
     } catch (error: any) {
       console.error('Error loading group details:', error);
@@ -145,70 +166,168 @@ export default function GroupDetailsScreen() {
     }
   }, [groupId, loadGroupDetails]);
 
-  // Reload when screen comes into focus (useful when navigating back) - silent reload
-  // Skip if we just handled a refresh param to avoid duplicate reloads
+  // Play celebration sound only when group *just* completed (not when opening an already-completed group)
+  useEffect(() => {
+    if (!groupId || !group) return;
+    const participants = group.participants || [];
+    const sorted = group.isOrderSet
+      ? [...participants].sort((a, b) => (a.order || 0) - (b.order || 0))
+      : participants;
+    const allPaidOut =
+      sorted.length > 0 && sorted.every((p) => p.hasReceivedPayment === true);
+    const allRoundsDone =
+      group.rounds &&
+      group.rounds.length > 0 &&
+      group.rounds.every((r) => r.status === 'COMPLETED');
+    const lastRound =
+      sorted.length > 0 &&
+      (group.currentRecipientIndex ?? 0) >= sorted.length - 1;
+    const allPaidThisRound =
+      sorted.length > 0 && sorted.every((p) => p.isPaid === true);
+    const completed =
+      allPaidOut || allRoundsDone || (lastRound && allPaidThisRound);
+    if (!completed) {
+      hasSeenGroupNotCompletedRef.current = true;
+      return;
+    }
+    // Only play if we saw this group as not completed earlier in this visit (e.g. after Next Round)
+    if (hasSeenGroupNotCompletedRef.current) {
+      playCompletionSoundIfNeeded(groupId);
+    }
+  }, [groupId, group]);
+
+  // Auto-refresh interval for participants to see admin actions (poll every 5 seconds)
+  const AUTO_REFRESH_INTERVAL_MS = 5000;
+
+  // Stop polling when group is completed - no further updates expected
+  const shouldStopPolling =
+    group?.status === 'COMPLETED' ||
+    (group as { isCompleted?: boolean })?.isCompleted === true ||
+    (group?.participants?.length &&
+      group.participants.every((p) => p.hasReceivedPayment === true));
+
+  // Reload when screen comes into focus + poll for updates (participants see admin actions)
   useFocusEffect(
     useCallback(() => {
-      if (groupId) {
-        const refreshParam = params.refresh as string;
-        // Only reload on focus if there's no refresh param (to avoid duplicate calls)
-        if (!refreshParam) {
-          console.log('GroupDetailsScreen: Screen focused, reloading group details (silent)');
-          // Add a small delay to ensure previous navigation is complete
-          const timer = setTimeout(() => {
-            loadGroupDetails(false); // Silent reload
-          }, 200);
-          return () => clearTimeout(timer);
-        } else {
-          console.log('GroupDetailsScreen: Screen focused but refresh param present, skipping reload');
+      if (!groupId) return;
+
+      const refreshParam = params.refresh as string;
+      if (!refreshParam) {
+        const timer = setTimeout(() => {
+          loadGroupDetails(false);
+        }, 200);
+
+        // Poll only while group is active - stop when Ayuuto is completed
+        let pollInterval: ReturnType<typeof setInterval> | null = null;
+        if (!shouldStopPolling) {
+          pollInterval = setInterval(() => {
+            loadGroupDetails(false);
+          }, AUTO_REFRESH_INTERVAL_MS);
         }
+
+        return () => {
+          clearTimeout(timer);
+          if (pollInterval) clearInterval(pollInterval);
+        };
       }
-    }, [groupId, loadGroupDetails, params.refresh])
+    }, [groupId, loadGroupDetails, params.refresh, shouldStopPolling])
   );
 
   const handleSpin = async () => {
     if (isSpinning || !group || group.isOrderSet) return;
-    
+
     setIsSpinning(true);
-    
-    try {
-      const updatedGroup = await spinForOrder(groupId);
-      if (updatedGroup) {
-        setGroup(updatedGroup);
 
-        // After spinning, show a loading/animation screen similar to Next Round
-        const participants = updatedGroup.participants || [];
-        const sorted = updatedGroup.isOrderSet
-          ? [...participants].sort((a, b) => (a.order || 0) - (b.order || 0))
-          : participants;
-        const currentIndex = updatedGroup.currentRecipientIndex || 0;
-        const current = sorted[currentIndex];
-        const nextRecipientName = formatParticipantName(current?.name || '');
-        const roundNumber = (currentIndex + 1).toString();
+    // Navigate immediately to premium spin loading screen (API runs there)
+    // Use replace so the new spin screen always shows; no stack/back confusion
+    // Pass _ts to force fresh mount on each spin (fixes 2nd group not showing animation)
+    router.replace({
+      pathname: '/(tabs)/spin-loading',
+      params: { groupId, _ts: Date.now().toString() },
+    });
 
-        router.push({
-          pathname: '/(tabs)/next-round',
-          params: {
-            groupId,
-            nextRecipientName,
-            roundNumber,
-            mode: 'spin',
-            timestamp: Date.now().toString(), // Force remount per spin
-          },
-        });
-      } else {
-        throw new Error('Failed to spin for order');
-      }
-    } catch (error: any) {
-      console.error('Error spinning for order:', error);
-      alert(
-        'Error',
-        error?.message || 'Failed to spin for order. Please try again.'
-      );
-    } finally {
-      setIsSpinning(false);
-    }
+    setIsSpinning(false);
   };
+
+  const handleNextRound = useCallback(async () => {
+    if (!groupId) {
+      console.error('GroupDetailsScreen: Cannot start next round - groupId missing');
+      return;
+    }
+
+    // Prevent double-taps / duplicate API calls
+    if (isStartingNextRoundRef.current) return;
+    isStartingNextRoundRef.current = true;
+    setIsStartingNextRound(true);
+
+    try {
+      console.log('NEXT ROUND button clicked, groupId:', groupId);
+
+      const { nextRound } = await import('@/utils/api');
+      console.log('Calling nextRound API...');
+      const updatedGroup = await nextRound(groupId);
+      console.log('nextRound API call successful');
+
+      // Update local state with latest group data (including rounds)
+      setGroup(updatedGroup);
+
+      // Compute next recipient and round number from updated group
+      const participants = updatedGroup.participants || [];
+      const sorted = updatedGroup.isOrderSet
+        ? [...participants].sort((a, b) => (a.order || 0) - (b.order || 0))
+        : participants;
+
+      let nextRecipientName = '';
+      let roundNumber = '1';
+
+      if (updatedGroup.currentRound && updatedGroup.rounds) {
+        roundNumber = updatedGroup.currentRound.roundNumber.toString();
+        const recipient = sorted.find(
+          (p) => p.id === updatedGroup.currentRound!.recipientParticipantId
+        );
+        nextRecipientName = formatParticipantName(recipient?.name || '');
+      } else {
+        const nextIndex = updatedGroup.currentRecipientIndex || 0;
+        const nextRecipient = sorted[nextIndex];
+        nextRecipientName = formatParticipantName(nextRecipient?.name || '');
+        roundNumber = (nextIndex + 1).toString();
+      }
+
+      console.log(
+        'GroupDetailsScreen: Navigating to next-round screen with groupId:',
+        groupId,
+        'round:',
+        roundNumber,
+        'recipient:',
+        nextRecipientName
+      );
+
+      router.push({
+        pathname: '/(tabs)/next-round',
+        params: {
+          groupId,
+          nextRecipientName,
+          roundNumber,
+          timestamp: Date.now().toString(), // Force remount on each navigation
+        },
+      });
+    } catch (error: any) {
+      console.error('Error starting next round:', error);
+      alert('Error', error?.message || 'Failed to start next round. Please try again.');
+      // Reload group details on error
+      try {
+        const updatedGroup = await getGroupDetails(groupId);
+        if (updatedGroup) {
+          setGroup(updatedGroup);
+        }
+      } catch (reloadError) {
+        console.error('Error reloading group details:', reloadError);
+      }
+    } finally {
+      isStartingNextRoundRef.current = false;
+      setIsStartingNextRound(false);
+    }
+  }, [groupId]);
 
   const handlePaymentToggle = async (participantId: string, currentPaidStatus: boolean) => {
     // Prevent editing if user is not the owner or viewing via shared link
@@ -229,98 +348,109 @@ export default function GroupDetailsScreen() {
     try {
       const { updatePaymentStatus } = await import('@/utils/api');
       
-      // Reload group first to ensure we have the latest state
-      const latestGroup = await getGroupDetails(groupId);
-      if (!latestGroup) {
-        throw new Error('Failed to load group details');
-      }
-      setGroup(latestGroup);
-      
-      // Get sorted participants from latest group state
-      const participants = latestGroup.participants || [];
-      const sorted = latestGroup.isOrderSet
+      // Use current group state (no need to reload first - saves time)
+      const participants = group.participants || [];
+      const sorted = group.isOrderSet
         ? [...participants].sort((a, b) => (a.order || 0) - (b.order || 0))
         : participants;
       
-      // Check if this is the current recipient paying BEFORE updating
-      const currentRecipientIndex = latestGroup.currentRecipientIndex || 0;
+      // Check if this is the current recipient paying
+      const currentRecipientIndex = group.currentRecipientIndex || 0;
       const isFirstParticipant = sorted[currentRecipientIndex]?.id === participantId;
       const newPaidStatus = !currentPaidStatus;
       
       if (isFirstParticipant && newPaidStatus) {
-        // For current recipient paying, update status first
-        await updatePaymentStatus(groupId, participantId, true);
-        
-        // Reload again to get the updated payment status
-        const updatedGroup = await getGroupDetails(groupId);
-        if (!updatedGroup) {
-          throw new Error('Failed to reload group after payment update');
-        }
-        setGroup(updatedGroup);
-        
-        // Calculate total savings amount (amount per person * member count)
-        const totalSavings = updatedGroup.totalSavings || (updatedGroup.amountPerPerson || 0) * (updatedGroup.memberCount || 0);
-        
-        // Get current recipient info for dynamic display
-        const currentRecipientIndex = updatedGroup.currentRecipientIndex || 0;
-        const sortedParticipants = updatedGroup.isOrderSet
-          ? [...(updatedGroup.participants || [])].sort((a, b) => (a.order || 0) - (b.order || 0))
-          : (updatedGroup.participants || []);
-        const currentRecipient = sortedParticipants[currentRecipientIndex];
+        // For current recipient paying, navigate immediately for instant response
+        // Calculate values from current group state
+        const totalSavings = group.totalSavings || (group.amountPerPerson || 0) * (group.memberCount || 0);
+        const currentRecipient = sorted[currentRecipientIndex];
         const recipientName = formatParticipantName(currentRecipient?.name || '');
         const roundNumber = (currentRecipientIndex + 1).toString();
         
-        // Navigate to payment processing screen
-        try {
-          router.push({
-            pathname: '/(tabs)/payment-processing',
-            params: {
-              groupId,
-              amount: totalSavings.toString(),
-              recipientName,
-              roundNumber,
-              timestamp: Date.now().toString(), // Force remount on each navigation
-            },
-          });
-        } catch (navError) {
-          console.error('Navigation error:', navError);
-          // Reload to show updated state even if navigation fails
-          await loadGroupDetails();
-          throw new Error('Failed to navigate to payment screen');
-        }
+        // Navigate immediately - payment-processing screen will call updatePaymentStatus with source: 'pay_now'
+        router.push({
+          pathname: '/(tabs)/payment-processing',
+          params: {
+            groupId,
+            amount: totalSavings.toString(),
+            recipientName,
+            roundNumber,
+            participantId, // Pass participantId so payment screen can update status
+            timestamp: Date.now().toString(),
+          },
+        });
       } else {
-        // For other participants, just toggle payment status
-        await updatePaymentStatus(groupId, participantId, newPaidStatus);
+        // Show loader on this checkbox while request is in flight
+        setPaymentToggleParticipantId(participantId);
+
+        // For other participants, optimistically update UI immediately
+        const updatedParticipants = participants.map((p) =>
+          p.id === participantId ? { ...p, isPaid: newPaidStatus } : p
+        );
         
-        // Reload group details and logs to get updated payment status & history
-        const [updatedGroup, logsData] = await Promise.all([
-          getGroupDetails(groupId),
-          getGroupLogs(groupId),
-        ]);
-        if (updatedGroup) {
-          setGroup(updatedGroup);
-        }
-        if (logsData) {
-          setLogs(logsData);
-        }
+        // Update local state immediately for instant UI feedback
+        setGroup({
+          ...group,
+          participants: updatedParticipants,
+        });
+        
+        // Make API call in background (non-blocking) - source: checkbox for different notification message
+        updatePaymentStatus(groupId, participantId, newPaidStatus, 'checkbox')
+          .then(async () => {
+            // On success, reload group details to sync with server (silent refresh)
+            try {
+              const updatedGroup = await getGroupDetails(groupId);
+              if (updatedGroup) {
+                setGroup(updatedGroup);
+              }
+              
+              // Only load logs if user is NOT the owner
+              if (!isOwner) {
+                const logsData = await getGroupLogs(groupId);
+                if (logsData) {
+                  setLogs(logsData);
+                }
+              }
+            } catch (reloadError) {
+              console.error('Error reloading group details after payment update:', reloadError);
+            } finally {
+              setPaymentToggleParticipantId(null);
+            }
+          })
+          .catch((error: any) => {
+            console.error('Error updating payment status:', error);
+            setPaymentToggleParticipantId(null);
+            // Revert optimistic update on error
+            setGroup({
+              ...group,
+              participants: participants, // Revert to original state
+            });
+            alert(
+              'Error',
+              error?.message || 'Failed to update payment status. Please try again.'
+            );
+          });
       }
     } catch (error: any) {
       console.error('Error updating payment status:', error);
+      setPaymentToggleParticipantId(null);
       alert(
         'Error',
         error?.message || 'Failed to update payment status. Please try again.'
       );
       // Reload group details on error to ensure state is correct
       try {
-        const [updatedGroup, logsData] = await Promise.all([
-          getGroupDetails(groupId),
-          getGroupLogs(groupId),
-        ]);
+        const updatedGroup = await getGroupDetails(groupId);
         if (updatedGroup) {
           setGroup(updatedGroup);
         }
-        if (logsData) {
-          setLogs(logsData);
+        
+        // Only load logs if user is NOT the owner
+        if (!isOwner) {
+          const logsData = await getGroupLogs(groupId);
+          if (logsData) {
+            setLogs(logsData);
+          }
         }
       } catch (reloadError) {
         console.error('Error reloading group details:', reloadError);
@@ -437,10 +567,8 @@ export default function GroupDetailsScreen() {
         throw new Error('Share link not generated');
       }
 
-      // Build share message
-      const shareMessage = `Check out this Ayuuto group: ${group.name}\n\n` +
-        `View the group details: ${shareLink}\n\n` +
-        `Shared from Ayuuto App`;
+      // Build share message: URL on its own line so apps show it as a clickable hyperlink
+      const shareMessage = `Check out this Ayuuto group: ${group.name}\n\n${shareLink}\n\nShared from Ayuuto App`;
 
       console.log('[Share] Sharing link:', shareLink);
 
@@ -452,7 +580,7 @@ export default function GroupDetailsScreen() {
       const result = await Share.share({
         message: shareMessage,
         title: `Ayuuto Group: ${group.name}`,
-        url: shareLink,
+        url: shareLink, // iOS: often shown as separate link; Android: may use this for intent
       });
 
       if (result.action === Share.sharedAction) {
@@ -472,6 +600,14 @@ export default function GroupDetailsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      {/* Full-screen overlay when toggling payment checkbox */}
+      {paymentToggleParticipantId && (
+        <View style={styles.paymentToggleOverlay} pointerEvents="box-only">
+          <View style={styles.paymentToggleOverlayContent}>
+            <LoadingSpinner size={48} text={t('updatingPayment')} color="#FFD700" />
+          </View>
+        </View>
+      )}
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <View style={styles.header}>
@@ -508,13 +644,9 @@ export default function GroupDetailsScreen() {
         <View style={styles.savingsCard}>
           <View style={styles.savingsCardHeader}>
             <Text style={styles.savingsTitle}>{t('savings')}</Text>
-            {allParticipantsPaidOut ? (
+            {allParticipantsPaidOut && (
               <View style={styles.completedBadge}>
                 <Text style={styles.completedText}>{t('completed')}</Text>
-              </View>
-            ) : (
-              <View style={styles.adminBadge}>
-                <Text style={styles.adminText}>{t('admin')}</Text>
               </View>
             )}
           </View>
@@ -540,12 +672,7 @@ export default function GroupDetailsScreen() {
                     ))}
                   </View>
                 ) : nextRecipient ? (
-                  <Text
-                    style={styles.nextRecipientName}
-                    numberOfLines={1}
-                    ellipsizeMode="tail">
-                    {formatParticipantName(nextRecipient).toUpperCase()}
-                  </Text>
+                  <Text style={styles.nextRecipientName}>{(formatParticipantName(nextRecipient).slice(0, 10)).toUpperCase()}</Text>
                 ) : (
                   <Text style={styles.questionMarks}>???</Text>
                 )}
@@ -558,26 +685,6 @@ export default function GroupDetailsScreen() {
           </View>
         </View>
 
-        {/* Manage Participants Button - show when group is missing participants and user can edit */}
-        {canEdit && !group.isOrderSet && !isParticipantsComplete && (
-          <TouchableOpacity
-            style={[styles.spinButton, styles.addParticipantsButton]}
-            onPress={() => {
-              if (!groupId) return;
-              router.push({
-                pathname: '/(tabs)/manage-participants',
-                params: {
-                  groupId,
-                  groupName: group.name,
-                  memberCount: (group.memberCount ?? 0).toString(),
-                },
-              });
-            }}
-            activeOpacity={0.8}>
-            <IconSymbol name="person.2.fill" size={20} color="#001a3c" />
-            <Text style={styles.spinButtonText}>{t('manageParticipants')}</Text>
-          </TouchableOpacity>
-        )}
 
         {/* Spin For Order Button - Only show if order is not set, user can edit, and participants complete */}
         {!group.isOrderSet && canEdit && isParticipantsComplete && (
@@ -659,9 +766,9 @@ export default function GroupDetailsScreen() {
                           <Text style={styles.orderNumberText}>{participant.order}</Text>
                         </View>
                       )}
-                      <Text style={styles.participantName}>{(displayName || '').toUpperCase()}</Text>
-                      {/* Show PAID OUT tag next to name for participants who have received payment */}
-                      {hasReceivedPayment && (
+                      <Text style={styles.participantName}>{((displayName || '').slice(0, 10)).toUpperCase()}</Text>
+                      {/* Show PAID OUT tag next to name for participants who have received payment (only when group is NOT completed) */}
+                      {hasReceivedPayment && !isGroupCompleted && (
                         <View style={styles.paidOutTagInline}>
                           <Text style={styles.paidOutTextInline}>{t('paidOut')}</Text>
                         </View>
@@ -678,8 +785,9 @@ export default function GroupDetailsScreen() {
                     <TouchableOpacity
                       style={styles.checkboxChecked}
                       onPress={() => participant.id && handlePaymentToggle(participant.id, true)}
+                      disabled={paymentToggleParticipantId === participant.id}
                       activeOpacity={0.7}>
-                      <IconSymbol name="checkmark" size={14} color="#FFFFFF" />
+                      <IconSymbol name="checkmark" size={20} color="#FFFFFF" />
                     </TouchableOpacity>
                   </>
                 ) : (
@@ -688,6 +796,7 @@ export default function GroupDetailsScreen() {
                     <TouchableOpacity
                       style={styles.checkbox}
                       onPress={() => participant.id && handlePaymentToggle(participant.id, false)}
+                      disabled={paymentToggleParticipantId === participant.id}
                       activeOpacity={0.7}>
                     </TouchableOpacity>
                   </>
@@ -705,8 +814,12 @@ export default function GroupDetailsScreen() {
                 )}
               </View>
             )}
-                    {/* PAID OUT tag is already shown inline next to the name via hasReceivedPayment.
-                       We avoid rendering a second tag on the right to prevent duplicates when the group completes. */}
+                    {/* Show PAID OUT tag on the right when group is completed (only one badge when completed) */}
+                    {isGroupCompleted && hasReceivedPayment && (
+                      <View style={styles.paidOutTagInline}>
+                        <Text style={styles.paidOutTextInline}>{t('paidOut')}</Text>
+                      </View>
+                    )}
                   </View>
                   
           {/* Current Recipient - Show PAY NOW button (only if they haven't received payment before and user can edit) */}
@@ -725,71 +838,28 @@ export default function GroupDetailsScreen() {
           </View>
         </View>
 
-        {/* Group Activity / Logs */}
-        <View style={styles.logsSection}>
-          <View style={styles.logsHeader}>
-            <Text style={styles.logsTitle}>{t('groupActivity')}</Text>
-            {logs.length > 3 && (
-              <TouchableOpacity
-                style={styles.viewMoreButton}
-                onPress={() => {
-                  router.push({
-                    pathname: '/(tabs)/group-activity-log',
-                    params: { groupId, groupName: group.name },
-                  });
-                }}
-                activeOpacity={0.8}>
-                <Text style={styles.viewMoreText}>{t('viewMore')}</Text>
-                <IconSymbol name="chevron.right" size={14} color="#FFD700" />
-              </TouchableOpacity>
+        {/* NEXT ROUND Button - Show when current recipient has paid and group is not completed and user can edit */}
+        {group.isOrderSet && !isGroupCompleted && canEdit && (() => {
+          const currentRecipientIndex = group.currentRecipientIndex || 0;
+          const currentRecipient = sortedParticipants[currentRecipientIndex];
+          return currentRecipient?.isPaid === true;
+        })() && (
+          <TouchableOpacity
+            style={[styles.nextRoundButton, isStartingNextRound && styles.nextRoundButtonDisabled]}
+            onPress={handleNextRound}
+            disabled={isStartingNextRound}
+            activeOpacity={isStartingNextRound ? 1 : 0.8}>
+            {/* Keep content to preserve size; hide it visually when loading */}
+            <View style={[styles.nextRoundButtonContent, isStartingNextRound && styles.nextRoundButtonTextHidden]}>
+              <Text style={styles.nextRoundButtonText}>{t('nextRound')}</Text>
+            </View>
+            {isStartingNextRound && (
+              <View style={styles.nextRoundButtonSpinnerOverlay} pointerEvents="none">
+                <ActivityIndicator size="small" color="#001a3c" />
+              </View>
             )}
-          </View>
-          {isLogsLoading ? (
-            <View style={styles.logsEmptyState}>
-              <LoadingSpinner size={32} text={t('loadingActivity')} />
-            </View>
-          ) : logs.length === 0 ? (
-            <View style={styles.logsEmptyState}>
-              <Text style={styles.logsEmptyText}>{t('noActivityYet')}</Text>
-            </View>
-          ) : (
-            <View style={styles.logsList}>
-              {logs.slice(0, 3).map((log) => {
-                const timestamp = log.paidAt || log.createdAt;
-                const dateLabel = timestamp
-                  ? new Date(timestamp).toLocaleString()
-                  : '';
-                return (
-                  <View key={log.id} style={styles.logItem}>
-                    <View style={styles.logLeft}>
-                      <View style={styles.logIcon}>
-                        <IconSymbol
-                          name="checkmark.circle.fill"
-                          size={18}
-                          color="#4CAF50"
-                        />
-                      </View>
-                      <View style={styles.logTextContainer}>
-                        <Text style={styles.logMainText}>
-                          {log.participantName
-                            ? `${log.participantName} paid`
-                            : 'Payment recorded'}
-                          {typeof log.roundNumber === 'number'
-                            ? ` • Round ${log.roundNumber}`
-                            : ''}
-                        </Text>
-                        {typeof log.amount === 'number' && log.amount > 0 && (
-                          <Text style={styles.logSubText}>Amount: ${log.amount}</Text>
-                        )}
-                      </View>
-                    </View>
-                    <Text style={styles.logTimeText}>{dateLabel}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
+          </TouchableOpacity>
+        )}
 
         {/* Completion Card - Show when Ayuuto is completed */}
         {isGroupCompleted && (
@@ -800,93 +870,71 @@ export default function GroupDetailsScreen() {
           </View>
         )}
 
-        {/* NEXT ROUND Button - Show when current recipient has paid and group is not completed and user can edit */}
-        {group.isOrderSet && !isGroupCompleted && canEdit && (() => {
-          const currentRecipientIndex = group.currentRecipientIndex || 0;
-          const currentRecipient = sortedParticipants[currentRecipientIndex];
-          return currentRecipient?.isPaid === true;
-        })() && (
-          <TouchableOpacity
-            style={styles.nextRoundButton}
-            onPress={async () => {
-              if (!groupId) {
-                console.error('GroupDetailsScreen: Cannot start next round - groupId missing');
-                return;
-              }
-              
-              try {
-                console.log('NEXT ROUND button clicked, groupId:', groupId);
-                
-                const { nextRound } = await import('@/utils/api');
-                console.log('Calling nextRound API...');
-                const updatedGroup = await nextRound(groupId);
-                console.log('nextRound API call successful');
-
-                // Update local state with latest group data (including rounds)
-                setGroup(updatedGroup);
-
-                // Compute next recipient and round number from updated group
-                const participants = updatedGroup.participants || [];
-                const sorted = updatedGroup.isOrderSet
-                  ? [...participants].sort((a, b) => (a.order || 0) - (b.order || 0))
-                  : participants;
-
-                let nextRecipientName = '';
-                let roundNumber = '1';
-
-                if (updatedGroup.currentRound && updatedGroup.rounds) {
-                  roundNumber = updatedGroup.currentRound.roundNumber.toString();
-                  const recipient = sorted.find(
-                    (p) => p.id === updatedGroup.currentRound!.recipientParticipantId
-                  );
-                  nextRecipientName = formatParticipantName(recipient?.name || '');
-                } else {
-                  const nextIndex = updatedGroup.currentRecipientIndex || 0;
-                  const nextRecipient = sorted[nextIndex];
-                  nextRecipientName = formatParticipantName(nextRecipient?.name || '');
-                  roundNumber = (nextIndex + 1).toString();
-                }
-                  
-                  // Navigate to next-round loading screen
-                console.log(
-                  'GroupDetailsScreen: Navigating to next-round screen with groupId:',
-                  groupId,
-                  'round:',
-                  roundNumber,
-                  'recipient:',
-                  nextRecipientName
-                );
-
+        {/* Group Activity / Logs - Only show to participants, not to owner */}
+        {!isOwner && (
+          <View style={styles.logsSection}>
+            <View style={styles.logsHeader}>
+              <Text style={styles.logsTitle}>{t('groupActivity')}</Text>
+              {logs.length > 3 && (
+                <TouchableOpacity
+                  style={styles.viewMoreButton}
+                  onPress={() => {
                     router.push({
-                      pathname: '/(tabs)/next-round',
-                      params: {
-                        groupId,
-                        nextRecipientName,
-                        roundNumber,
-                        timestamp: Date.now().toString(), // Force remount on each navigation
-                      },
+                      pathname: '/(tabs)/group-activity-log',
+                      params: { groupId, groupName: group.name },
                     });
-              } catch (error: any) {
-                console.error('Error starting next round:', error);
-                alert(
-                  'Error',
-                  error?.message || 'Failed to start next round. Please try again.'
-                );
-                // Reload group details on error
-                try {
-                  const updatedGroup = await getGroupDetails(groupId);
-                  if (updatedGroup) {
-                    setGroup(updatedGroup);
-                  }
-                } catch (reloadError) {
-                  console.error('Error reloading group details:', reloadError);
-                }
-              }
-            }}
-            activeOpacity={0.8}>
-            <Text style={styles.nextRoundButtonText}>{t('nextRound')}</Text>
-            <IconSymbol name="party.popper.fill" size={20} color="#001a3c" />
-          </TouchableOpacity>
+                  }}
+                  activeOpacity={0.8}>
+                  <Text style={styles.viewMoreText}>{t('viewMore')}</Text>
+                  <IconSymbol name="chevron.right" size={14} color="#FFD700" />
+                </TouchableOpacity>
+              )}
+            </View>
+            {isLogsLoading ? (
+              <View style={styles.logsEmptyState}>
+                <LoadingSpinner size={32} text={t('loadingActivity')} />
+              </View>
+            ) : logs.length === 0 ? (
+              <View style={styles.logsEmptyState}>
+                <Text style={styles.logsEmptyText}>{t('noActivityYet')}</Text>
+              </View>
+            ) : (
+              <View style={styles.logsList}>
+                {logs.slice(0, 3).map((log) => {
+                  const timestamp = log.paidAt || log.createdAt;
+                  const dateLabel = timestamp
+                    ? new Date(timestamp).toLocaleString()
+                    : '';
+                  const isActivity = log.type === 'group_created' || log.type === 'spin';
+                  const mainText = isActivity
+                    ? (log.description || (log.type === 'group_created' ? 'Admin created group' : 'Spin for order was clicked'))
+                    : (log.description ||
+                        (log.participantName ? `${log.participantName} paid` : 'Payment recorded') +
+                          (typeof log.roundNumber === 'number' ? ` • Round ${log.roundNumber}` : ''));
+                  return (
+                    <View key={log.id} style={styles.logItem}>
+                      <View style={styles.logLeft}>
+                        <View style={styles.logIcon}>
+                          <IconSymbol
+                            name="checkmark.circle.fill"
+                            size={18}
+                            color="#4CAF50"
+                          />
+                        </View>
+                        <View style={styles.logTextContainer}>
+                          <Text style={styles.logMainText}>{mainText}</Text>
+                          {!isActivity && typeof log.amount === 'number' && log.amount > 0 && (
+                            <Text style={styles.logSubText}>Amount: ${log.amount}</Text>
+                          )}
+                        </View>
+                      </View>
+                      <Text style={styles.logTimeText}>{dateLabel}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -1151,20 +1199,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   checkbox: {
-    width: 20,
-    height: 20,
+    width: 32,
+    height: 32,
     borderWidth: 2,
     borderColor: '#9BA1A6',
-    borderRadius: 4,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
   },
   checkboxChecked: {
-    width: 20,
-    height: 20,
+    width: 32,
+    height: 32,
     borderWidth: 0,
-    borderRadius: 4,
+    borderRadius: 6,
     backgroundColor: '#90EE90',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1230,6 +1278,28 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 24,
     marginBottom: 20,
+    position: 'relative',
+  },
+  nextRoundButtonDisabled: {
+    opacity: 0.85,
+  },
+  nextRoundButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  nextRoundButtonTextHidden: {
+    opacity: 0,
+  },
+  nextRoundButtonSpinnerOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   nextRoundButtonText: {
     color: '#001a3c',
@@ -1241,6 +1311,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  paymentToggleOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 26, 60, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  paymentToggleOverlayContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
   },
   loadingText: {
     color: '#FFFFFF',

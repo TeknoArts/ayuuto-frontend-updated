@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ayuuto",
     "slug": "ayuuto",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ayuuto",
@@ -11,18 +11,35 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.technoarts.ayuuto"
+      "bundleIdentifier": "com.ayuuto.app",
+      "buildNumber": "3",
+      "icon": "./assets/images/icon.png",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to share images.",
+        "NSCameraUsageDescription": "This app needs access to your camera to take photos.",
+        "NSAppTransportSecurity": {
+          "NSExceptionDomains": {
+            "104.248.117.205": {
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            }
+          }
+        }
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundImage": "./assets/images/icon.png",
+        "monochromeImage": "./assets/images/icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.technoarts.ayuuto",
+      "package": "com.ayuuto.app",
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE"
@@ -30,14 +47,14 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/icon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#1a2332",
@@ -69,9 +86,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "7225f913-f85b-49fc-97a2-ea3c3490793c"
+        "projectId": "29737d5c-9d4c-4c9c-a713-774ea5eac196"
       }
     },
-    "owner": "technoarts165"
+    "owner": "yusufkullow"
   }
 }

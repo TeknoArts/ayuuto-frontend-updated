@@ -1,11 +1,12 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { CustomAlert, setAlertInstance, type AlertButton } from './custom-alert';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { CustomAlert, setAlertInstance, type AlertButton, type ShowAlertOptions } from './custom-alert';
 
 interface AlertState {
   visible: boolean;
   title: string;
   message: string;
   buttons?: AlertButton[];
+  autoDismissMs?: number;
 }
 
 export function AlertProvider({ children }: { children: React.ReactNode }) {
@@ -15,22 +16,43 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
     message: '',
     buttons: [],
   });
+  const autoDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showAlert = useCallback((title: string, message: string, buttons?: AlertButton[]) => {
+  const showAlert = useCallback((title: string, message: string, buttons?: AlertButton[], options?: ShowAlertOptions) => {
     setAlertState({
       visible: true,
       title,
       message,
       buttons,
+      autoDismissMs: options?.autoDismissMs,
     });
   }, []);
 
   const hideAlert = useCallback(() => {
+    if (autoDismissTimerRef.current) {
+      clearTimeout(autoDismissTimerRef.current);
+      autoDismissTimerRef.current = null;
+    }
     setAlertState((prev) => ({
       ...prev,
       visible: false,
     }));
   }, []);
+
+  // Auto-dismiss when autoDismissMs is set
+  useEffect(() => {
+    if (!alertState.visible || alertState.autoDismissMs == null) return;
+    autoDismissTimerRef.current = setTimeout(() => {
+      autoDismissTimerRef.current = null;
+      hideAlert();
+    }, alertState.autoDismissMs);
+    return () => {
+      if (autoDismissTimerRef.current) {
+        clearTimeout(autoDismissTimerRef.current);
+        autoDismissTimerRef.current = null;
+      }
+    };
+  }, [alertState.visible, alertState.autoDismissMs, hideAlert]);
 
   // Set global instance immediately and on mount
   useEffect(() => {
@@ -52,6 +74,7 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
         title={alertState.title}
         message={alertState.message}
         buttons={alertState.buttons}
+        autoDismissMs={alertState.autoDismissMs}
         onDismiss={hideAlert}
       />
     </>

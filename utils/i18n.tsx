@@ -94,6 +94,7 @@ const translations = {
     
     // Common
     error: 'Error',
+    success: 'Success',
     retry: 'Retry',
     goBack: 'Go Back',
     
@@ -135,6 +136,7 @@ const translations = {
     viewMore: 'VIEW MORE',
     noActivityYet: 'No activity yet.',
     loadingActivity: 'Loading activity...',
+    updatingPayment: 'Updating payment...',
     
     // Payment Processing
     settingOrder: 'SETTING ORDER',
@@ -165,6 +167,7 @@ const translations = {
     failedToAdd: 'Failed to add participant.',
     failedToRemove: 'Failed to remove participant.',
     failedToDelete: 'Failed to delete group. Please try again.',
+    groupDeletedSuccess: 'Group deleted successfully.',
     failedToCreate: 'Failed to create group or set collection details. Please try again.',
     failedToLoadGroups: 'Failed to load groups. Please try again.',
     failedToLoadGroupDetails: 'Failed to load group details. Please try again.',
@@ -277,6 +280,7 @@ const translations = {
     
     // Common
     error: 'Qalad',
+    success: 'Guul',
     retry: 'Dib U Isku Day',
     goBack: 'Dib U Noqo',
     
@@ -328,6 +332,7 @@ const translations = {
     viewMore: 'WAX BADAN ARAAG',
     noActivityYet: 'Wali ma jiro hawlo.',
     loadingActivity: 'Hawlaha waa la helayaa...',
+    updatingPayment: 'Lacag bixinta waa la cusboonaysiinayaa...',
     
     // Payment Processing
     settingOrder: 'DEJINTA JARAYNTA',
@@ -358,6 +363,7 @@ const translations = {
     failedToAdd: 'Waa la ku dari kari waayay xubne.',
     failedToRemove: 'Waa la ka saari kari waayay xubne.',
     failedToDelete: 'Waa la tirtiri kari waayay koonta. Dib u isku day.',
+    groupDeletedSuccess: 'Koonta si guul leh ayaa loo tirtiray.',
     failedToCreate: 'Waa la abuuri kari waayay koonta ama dejinta macluumaadka ururinta. Dib u isku day.',
     failedToLoadGroups: 'Waa la heli kari waayay koontada. Dib u isku day.',
     failedToLoadGroupDetails: 'Waa la heli kari waayay faahfaahinta koontada. Dib u isku day.',

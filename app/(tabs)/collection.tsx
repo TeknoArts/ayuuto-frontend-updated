@@ -1,12 +1,10 @@
-import { useState, useCallback } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { useState, useCallback, useRef } from 'react';
+import { ActivityIndicator, StyleSheet, View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useI18n } from '@/utils/i18n';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { LoadingBar } from '@/components/ui/loading-bar';
 
 type Frequency = 'MONTHLY' | 'WEEKLY';
 
@@ -19,6 +17,7 @@ export default function CollectionScreen() {
   const [isAmountFocused, setIsAmountFocused] = useState(false);
   const [isCollectionDateFocused, setIsCollectionDateFocused] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const isCreatingRef = useRef(false);
 
   // Reset form when screen comes into focus
   useFocusEffect(
@@ -94,88 +93,131 @@ export default function CollectionScreen() {
   };
 
   const handleCreate = async () => {
-    if (!isFormValid) {
+    if (!isFormValid || isCreatingRef.current) {
       return;
     }
-    try {
-      setIsCreating(true);
-      const { createGroup, addParticipants, setCollectionDetails } = await import('@/utils/api');
 
-      const existingGroupId = params.groupId as string | undefined;
-      const fromWizard = params.fromWizard === 'true';
-
-      let groupId = existingGroupId;
-
-      if (!groupId && fromWizard) {
+    // Lock immediately to prevent double taps and show loader
+    isCreatingRef.current = true;
+    setIsCreating(true);
+    
+    const existingGroupId = params.groupId as string | undefined;
+    const fromWizard = params.fromWizard === 'true';
+    
+    // Create group first (fast operation), then navigate immediately
+    let groupId = existingGroupId;
+    
+    if (!groupId && fromWizard) {
+      try {
+        const { createGroup, addParticipants, setCollectionDetails } = await import('@/utils/api');
         const groupName = (params.groupName as string) || 'Ayuuto Group';
         const memberCount = parseInt((params.memberCount as string) || '2') || 2;
 
-        // Create the group first
+        // Create the group first (can take time on slow network)
         const group = await createGroup(groupName, memberCount);
         groupId = group.id;
 
-        // Optionally attach participants if provided
-        const participantsParam = params.participants as string | undefined;
-        if (participantsParam) {
-          try {
-            const participantsData = JSON.parse(participantsParam);
-            if (Array.isArray(participantsData) && participantsData.length > 0) {
-              // Handle both old format (array of strings) and new format (array of objects)
-              const payload = participantsData.map((p: any) => {
-                if (typeof p === 'string') {
-                  // Old format: just userId string
-                  return { userId: p };
-                } else {
-                  // New format: object with userId, email, name
+        // Navigate ASAP after we have groupId (instant UX)
+        const amountValue = parseFloat(amount);
+        const collectionDateValue = parseInt(collectionDate, 10);
+
+        // Unlock before navigating to avoid setState after unmount
+        isCreatingRef.current = false;
+        setIsCreating(false);
+
+        router.push({
+          pathname: '/(tabs)/group-created',
+          params: {
+            ...params,
+            groupId,
+            amount,
+            frequency,
+            collectionDate,
+            timestamp: Date.now().toString(),
+          },
+        });
+
+        // Do the slower setup work in background (non-blocking)
+        (async () => {
+          // Add participants if provided
+          const participantsParam = params.participants as string | undefined;
+          if (participantsParam) {
+            try {
+              const participantsData = JSON.parse(participantsParam);
+              if (Array.isArray(participantsData) && participantsData.length > 0) {
+                const payload = participantsData.map((p: any) => {
+                  if (typeof p === 'string') {
+                    return { userId: p };
+                  }
                   return {
                     userId: p.userId || null,
                     email: p.email || null,
                     name: p.name || null,
                   };
-                }
-              });
-              await addParticipants(groupId, payload as any);
+                });
+                await addParticipants(groupId!, payload as any);
+              }
+            } catch (e) {
+              console.warn('Failed to parse participants from params:', e);
             }
-          } catch (e) {
-            console.warn('Failed to parse participants from params:', e);
           }
-        }
-      }
 
-      if (!groupId) {
-        console.error('No groupId available for setting collection details.');
+          // Set collection details
+          try {
+            await setCollectionDetails(groupId!, amountValue, frequency, collectionDateValue);
+          } catch (error: any) {
+            console.error('Error setting collection details:', error);
+          }
+        })();
+
+        return;
+      } catch (error: any) {
+        console.error('Error creating group:', error);
+        alert(t('error'), error?.message || t('failedToCreate'));
+        isCreatingRef.current = false;
+        setIsCreating(false);
         return;
       }
-
-      // Set collection details for the group
-      await setCollectionDetails(
-        groupId,
-        parseFloat(amount),
-        frequency,
-        parseInt(collectionDate)
-      );
-
-      // Navigate to group created celebration screen
-      router.push({
-        pathname: '/(tabs)/group-created',
-        params: {
-          ...params,
-          groupId,
-          amount,
-          frequency,
-          collectionDate,
-          timestamp: Date.now().toString(),
-        },
-      });
-    } catch (error: any) {
-      console.error('Error creating group / setting collection details:', error);
-      alert(
-        t('error'),
-        error?.message || t('failedToCreate')
-      );
-    } finally {
-      setIsCreating(false);
     }
+
+    if (!groupId) {
+      console.error('No groupId available for setting collection details.');
+      alert(t('error'), 'Failed to create group');
+      isCreatingRef.current = false;
+      setIsCreating(false);
+      return;
+    }
+
+    // Navigate immediately to celebration screen
+    isCreatingRef.current = false;
+    setIsCreating(false);
+    router.push({
+      pathname: '/(tabs)/group-created',
+      params: {
+        ...params,
+        groupId,
+        amount,
+        frequency,
+        collectionDate,
+        timestamp: Date.now().toString(),
+      },
+    });
+    
+    // Set collection details in background (after navigation)
+    (async () => {
+      try {
+        const { setCollectionDetails } = await import('@/utils/api');
+        await setCollectionDetails(
+          groupId!,
+          parseFloat(amount),
+          frequency,
+          parseInt(collectionDate)
+        );
+      } catch (error: any) {
+        console.error('Error setting collection details:', error);
+        // Error is non-critical, group is already created
+      }
+    })();
   };
 
   return (
@@ -188,11 +230,19 @@ export default function CollectionScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
-            {/* Header with Back Button */}
+            {/* Header with Back Button - go to add-participants (emails) with same wizard params */}
             <View style={styles.header}>
               <TouchableOpacity
                 style={styles.backButton}
-                onPress={() => router.back()}>
+                onPress={() => {
+                  const groupName = (params.groupName as string) || '';
+                  const memberCount = (params.memberCount as string) || '2';
+                  const participants = (params.participants as string) || '[]';
+                  router.replace({
+                    pathname: '/(tabs)/add-participants',
+                    params: { groupName, memberCount, participants, fromWizard: 'true' },
+                  });
+                }}>
                 <IconSymbol name="chevron.left" size={20} color="#61a5fb" />
                 <Text style={styles.backText}>{t('back')}</Text>
               </TouchableOpacity>
@@ -296,18 +346,20 @@ export default function CollectionScreen() {
               <TouchableOpacity
                 style={[
                   styles.createButton,
-                  isFormValid && styles.createButtonActive
+                  isFormValid && styles.createButtonActive,
+                  isCreating && styles.createButtonDisabled,
                 ]}
                 onPress={handleCreate}
-                activeOpacity={0.8}
+                activeOpacity={isCreating ? 1 : 0.8}
                 disabled={!isFormValid || isCreating}>
-                {isCreating ? (
-                  <View style={styles.createButtonLoading}>
-                    <LoadingSpinner size={20} color="#FFFFFF" />
-                    <Text style={styles.createButtonText}>Creating...</Text>
+                {/* Keep text to preserve button size; hide it visually when loading */}
+                <Text style={[styles.createButtonText, isCreating && styles.createButtonTextHidden]}>
+                  {t('create')} & {t('celebrate')}!
+                </Text>
+                {isCreating && (
+                  <View style={styles.createButtonSpinnerOverlay} pointerEvents="none">
+                    <ActivityIndicator size="small" color="#FFFFFF" />
                   </View>
-                ) : (
-                  <Text style={styles.createButtonText}>{t('create')} & {t('celebrate')}!</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -484,11 +536,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 1.5,
   },
-  createButtonLoading: {
-    flexDirection: 'row',
+  createButtonDisabled: {
+    opacity: 0.85,
+  },
+  createButtonTextHidden: {
+    opacity: 0,
+  },
+  createButtonSpinnerOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
   },
 });
 

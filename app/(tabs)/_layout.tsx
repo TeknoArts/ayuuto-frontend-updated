@@ -104,6 +104,12 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="spin-loading"
+          options={{
+            href: null, // Hide from tab bar
+          }}
+        />
+        <Tabs.Screen
           name="next-round"
           options={{
             href: null, // Hide from tab bar
@@ -123,6 +129,18 @@ export default function TabLayout() {
         />
         <Tabs.Screen
           name="manage-participants"
+          options={{
+            href: null, // Hide from tab bar
+          }}
+        />
+        <Tabs.Screen
+          name="edit-participants"
+          options={{
+            href: null, // Hide from tab bar
+          }}
+        />
+        <Tabs.Screen
+          name="privacy-policy"
           options={{
             href: null, // Hide from tab bar
           }}

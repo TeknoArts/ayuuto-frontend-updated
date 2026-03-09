@@ -36,8 +36,8 @@ export default function ForgotPasswordScreen() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       alert(
-        t('invalidEmail'),
-        t('pleaseEnterValidEmail')
+        t('Invalid Email'),
+        t('Please enter a valid email address.')
       );
       return;
     }
@@ -64,7 +64,7 @@ export default function ForgotPasswordScreen() {
       console.error(`[FORGOT PASSWORD] Error:`, err);
       alert(
         'Error',
-        err?.message || t('unableToSendOTP')
+        err?.message || t('Unable to Send OTP')
       );
     } finally {
       setIsLoading(false);
@@ -84,14 +84,14 @@ export default function ForgotPasswordScreen() {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <Text style={styles.logoText}>AYUUTO</Text>
-            <Text style={styles.tagline}>{t('organizeWithTrust')}</Text>
+            <Text style={styles.tagline}>{t('Organize With Trust')}</Text>
           </View>
 
           {/* Header */}
           <View style={styles.headerContainer}>
-            <Text style={styles.title}>{t('forgotPassword')}</Text>
+            <Text style={styles.title}>{t('Forgot Password')}</Text>
             <Text style={styles.subtitle}>
-              {t('enterEmailForOTP')}
+              {t('Enter Email for OTP')}
             </Text>
           </View>
 

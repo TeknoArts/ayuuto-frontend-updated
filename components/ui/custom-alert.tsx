@@ -17,23 +17,30 @@ export interface AlertButton {
   style?: 'default' | 'cancel' | 'destructive';
 }
 
+export interface ShowAlertOptions {
+  autoDismissMs?: number;
+}
+
 interface CustomAlertProps {
   visible: boolean;
   title: string;
   message: string;
   buttons?: AlertButton[];
+  autoDismissMs?: number;
   onDismiss?: () => void;
 }
 
 let alertInstance: {
-  show: (title: string, message: string, buttons?: AlertButton[]) => void;
+  show: (title: string, message: string, buttons?: AlertButton[], options?: ShowAlertOptions) => void;
   hide: () => void;
 } | null = null;
 
-export function CustomAlert({ visible, title, message, buttons = [], onDismiss }: CustomAlertProps) {
-  const defaultButtons: AlertButton[] = buttons.length > 0 
-    ? buttons 
-    : [{ text: 'OK', onPress: onDismiss }];
+export function CustomAlert({ visible, title, message, buttons = [], autoDismissMs, onDismiss }: CustomAlertProps) {
+  const defaultButtons: AlertButton[] = autoDismissMs != null
+    ? []
+    : buttons.length > 0
+      ? buttons
+      : [{ text: 'OK', onPress: onDismiss }];
 
   // Determine icon based on title and message
   const getIcon = () => {
@@ -82,7 +89,8 @@ export function CustomAlert({ visible, title, message, buttons = [], onDismiss }
               {/* Message */}
               <Text style={styles.message}>{message}</Text>
 
-              {/* Buttons */}
+              {/* Buttons - hide when auto-dismiss */}
+              {defaultButtons.length > 0 && (
               <View style={[styles.buttonContainer, defaultButtons.length === 1 && styles.buttonContainerSingle]}>
                 {defaultButtons.map((button, index) => {
                   const isDestructive = button.style === 'destructive';
@@ -121,6 +129,7 @@ export function CustomAlert({ visible, title, message, buttons = [], onDismiss }
                   );
                 })}
               </View>
+              )}
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -133,10 +142,17 @@ export function CustomAlert({ visible, title, message, buttons = [], onDismiss }
 export const showCustomAlert = (
   title: string,
   message: string,
-  buttons?: AlertButton[]
+  buttons?: AlertButton[],
+  options?: ShowAlertOptions
 ): void => {
   if (alertInstance) {
-    alertInstance.show(title, message, buttons);
+    alertInstance.show(title, message, buttons, options);
+  }
+};
+
+export const hideCustomAlert = (): void => {
+  if (alertInstance) {
+    alertInstance.hide();
   }
 };
 
@@ -237,8 +253,16 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   buttonDestructive: {
-    backgroundColor: 'transparent',
+    backgroundColor: '#FF6B6B',
     borderColor: '#FF6B6B',
+    shadowColor: '#FF6B6B',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   buttonCancel: {
     backgroundColor: 'transparent',
@@ -253,7 +277,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   buttonTextDestructive: {
-    color: '#FF6B6B',
+    color: '#FFFFFF',
   },
   buttonTextCancel: {
     color: '#9BA1A6',

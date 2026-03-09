@@ -1,16 +1,26 @@
 import { Platform } from 'react-native';
 import { getAuthToken } from './auth';
 
+// Helper function to validate MongoDB ObjectId format
+// ObjectIds are 24-character hexadecimal strings
+function isValidObjectId(id: string | null | undefined): boolean {
+  if (!id || typeof id !== 'string') {
+    return false;
+  }
+  // MongoDB ObjectId is exactly 24 hex characters
+  return /^[0-9a-fA-F]{24}$/.test(id);
+}
+
 // Backend API Configuration
 // ============================================
-// PRODUCTION MODE: Set to true to use Railway server
+// PRODUCTION MODE: Set to true to use DigitalOcean Droplet
 // ============================================
-const USE_PRODUCTION = true; // Set to true to use Railway, false for local development
-const PRODUCTION_API_URL = 'https://web-production-40b9d.up.railway.app/api'; // TODO: Replace with your Railway URL
+const USE_PRODUCTION = true; // Set to true to use DigitalOcean Droplet, false for local development
+const PRODUCTION_API_URL = 'http://104.248.117.205/api'; // DigitalOcean Droplet - Nginx proxies on port 80
 
 // Local Development Configuration
 const IS_PHYSICAL_DEVICE = true;
-const PHYSICAL_DEVICE_IP = '192.168.18.126'; // Update this to your computer's IP address
+const PHYSICAL_DEVICE_IP = '10.84.107.128'; // Update this to your computer's IP address
 const BACKEND_PORT = 5001;
 
 const getApiBaseUrl = () => {
@@ -43,9 +53,9 @@ console.log(`[API] Using base URL: ${API_BASE_URL}`);
 console.log(`[API] Platform: ${Platform.OS}, Physical Device: ${IS_PHYSICAL_DEVICE}`);
 if (!USE_PRODUCTION) {
   console.warn(`[API] ⚠️  WARNING: Using LOCAL development mode! App will only work on same WiFi!`);
-  console.warn(`[API] ⚠️  Set USE_PRODUCTION = true to use Railway (works from anywhere)`);
+  console.warn(`[API] ⚠️  Set USE_PRODUCTION = true to use DigitalOcean Droplet (works from anywhere)`);
 } else {
-  console.log(`[API] ✅ Using PRODUCTION mode (Railway) - should work from any WiFi`);
+  console.log(`[API] ✅ Using PRODUCTION mode (DigitalOcean Droplet) - should work from any WiFi`);
 }
 
 // Fetch with timeout helper
@@ -135,8 +145,9 @@ export interface Participant {
 
 export interface GroupLogEntry {
   id: string;
-  type: 'payment';
+  type: 'payment' | 'group_created' | 'spin';
   groupId: string;
+  description?: string | null;
   participantId?: string | null;
   participantName?: string | null;
   amount?: number;
@@ -156,12 +167,32 @@ export interface UserSummary {
 }
 
 // Create Group
-export async function createGroup(name: string, memberCount: number): Promise<Group> {
+export async function createGroup(
+  name: string, 
+  memberCount: number,
+  participants?: Array<{ name: string; email?: string | null }>,
+  amountPerPerson?: number,
+  collectionDate?: number
+): Promise<Group> {
   const headers = await getAuthHeaders();
+  
+  const body: any = { name, memberCount };
+  
+  // If participants provided, create full group in one call
+  if (participants && participants.length >= 2) {
+    body.participants = participants;
+    if (amountPerPerson && amountPerPerson > 0) {
+      body.amountPerPerson = amountPerPerson;
+    }
+    if (collectionDate) {
+      body.collectionDate = collectionDate;
+    }
+  }
+  
   const response = await fetchWithTimeout(`${API_BASE_URL}/groups`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ name, memberCount }),
+    body: JSON.stringify(body),
   });
 
   const json: ApiResponse<{ group: Group }> = await response.json();
@@ -249,12 +280,18 @@ export async function setCollectionDetails(
 
 // Get Group Details
 export async function getGroupDetails(groupId: string): Promise<Group> {
+  // Validate groupId format before making API call
+  if (!isValidObjectId(groupId)) {
+    throw new Error('Invalid group ID format');
+  }
+
   const headers = await getAuthHeaders();
   const response = await fetchWithTimeout(
     `${API_BASE_URL}/groups/${groupId}`,
     {
       method: 'GET',
       headers,
+      cache: 'no-store', // Always get fresh data (e.g. when opening shared link or returning to group)
     }
   );
 
@@ -288,10 +325,12 @@ export async function spinForOrder(groupId: string): Promise<Group> {
 }
 
 // Update Payment Status
+// source: 'checkbox' = admin toggled checkbox; 'pay_now' = user tapped Pay Now (different notification messages)
 export async function updatePaymentStatus(
   groupId: string,
   participantId: string,
-  isPaid: boolean
+  isPaid: boolean,
+  source?: 'checkbox' | 'pay_now'
 ): Promise<Participant> {
   const headers = await getAuthHeaders();
   const response = await fetchWithTimeout(
@@ -299,7 +338,7 @@ export async function updatePaymentStatus(
     {
       method: 'PUT',
       headers,
-      body: JSON.stringify({ isPaid }),
+      body: JSON.stringify({ isPaid, ...(source && { source }) }),
     }
   );
 
@@ -310,6 +349,30 @@ export async function updatePaymentStatus(
   }
 
   return json.data.participant;
+}
+
+// Update Participant Emails
+export async function updateParticipantEmails(
+  groupId: string,
+  participants: Array<{ participantId: string; email: string }>
+): Promise<{ updatedParticipants: any[]; emailResults: any[] }> {
+  const headers = await getAuthHeaders();
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/groups/${groupId}/participants/emails`,
+    {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ participants }),
+    }
+  );
+
+  const json: ApiResponse<{ updatedParticipants: any[]; emailResults: any[] }> = await response.json();
+
+  if (!response.ok || !json.success || !json.data) {
+    throw new Error(json.message || 'Failed to update participant emails');
+  }
+
+  return json.data;
 }
 
 // Get User Groups
@@ -350,7 +413,7 @@ export async function getUserGroups(): Promise<Group[]> {
       console.error('[API] Response URL:', response.url);
       
       if (response.status === 404 || text.includes('not found') || text.includes('Application not found')) {
-        throw new Error(`Railway service not found or not running. Please check:\n1. Railway dashboard - is service online?\n2. Service URL: ${API_BASE_URL}\n3. Check Railway deployment logs`);
+        throw new Error(`DigitalOcean Droplet service not found or not running. Please check:\n1. DigitalOcean dashboard - is Droplet running?\n2. Service URL: ${API_BASE_URL}\n3. Check PM2 logs: pm2 logs ayuuto-backend`);
       }
       
       throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
@@ -367,15 +430,15 @@ export async function getUserGroups(): Promise<Group[]> {
         data: json.data
       });
       
-      // Handle Railway-specific errors
+      // Handle DigitalOcean-specific errors
       if (json.message && (json.message.includes('not found') || json.message.includes('Application not found'))) {
-        const errorMsg = `Railway service error: ${json.message}\n\n` +
+        const errorMsg = `DigitalOcean Droplet service error: ${json.message}\n\n` +
           `Troubleshooting:\n` +
-          `1. Check Railway dashboard: https://railway.app\n` +
-          `2. Verify service is online (green dot)\n` +
+          `1. Check DigitalOcean dashboard: https://cloud.digitalocean.com\n` +
+          `2. Verify Droplet is running\n` +
           `3. Service URL: ${API_BASE_URL}\n` +
-          `4. Check Railway deployment logs for errors\n` +
-          `5. Try redeploying the service in Railway`;
+          `4. Check PM2 logs: ssh to Droplet and run 'pm2 logs ayuuto-backend'\n` +
+          `5. Restart service: pm2 restart ayuuto-backend`;
         throw new Error(errorMsg);
       }
       
@@ -453,6 +516,11 @@ export async function sendTestNotification(title?: string, body?: string, data?:
 
 // Delete Group
 export async function deleteGroup(groupId: string): Promise<void> {
+  // Validate groupId format before making API call
+  if (!isValidObjectId(groupId)) {
+    throw new Error('Invalid group ID format');
+  }
+
   const headers = await getAuthHeaders();
   const response = await fetchWithTimeout(`${API_BASE_URL}/groups/${groupId}`, {
     method: 'DELETE',
@@ -468,6 +536,11 @@ export async function deleteGroup(groupId: string): Promise<void> {
 
 // Next Round - Move to next recipient
 export async function nextRound(groupId: string): Promise<Group> {
+  // Validate groupId format before making API call
+  if (!isValidObjectId(groupId)) {
+    throw new Error('Invalid group ID format');
+  }
+
   const headers = await getAuthHeaders();
   const response = await fetchWithTimeout(
     `${API_BASE_URL}/groups/${groupId}/next-round`,
@@ -488,6 +561,11 @@ export async function nextRound(groupId: string): Promise<Group> {
 
 // Get Group Logs (payment history per group)
 export async function getGroupLogs(groupId: string): Promise<GroupLogEntry[]> {
+  // Validate groupId format before making API call
+  if (!isValidObjectId(groupId)) {
+    throw new Error('Invalid group ID format');
+  }
+
   const headers = await getAuthHeaders();
   const response = await fetchWithTimeout(
     `${API_BASE_URL}/groups/${groupId}/logs`,

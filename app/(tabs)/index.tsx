@@ -1,13 +1,15 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, FlatList, Animated, Easing } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, FlatList, Animated, Easing, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { LoadingBar } from '@/components/ui/loading-bar';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { getUserData, UserData } from '@/utils/auth';
 import { getUserGroups, deleteGroup, type Group } from '@/utils/api';
 import { useI18n } from '@/utils/i18n';
-import { alert } from '@/utils/alert';
+import { alert, showAutoDismissAlert } from '@/utils/alert';
 
 export default function HomeScreen() {
   const { t, language } = useI18n();
@@ -17,10 +19,11 @@ export default function HomeScreen() {
   const [joinedGroups, setJoinedGroups] = useState<Group[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
   const isLoadingRef = useRef(false);
 
-  const loadGroups = useCallback(async (showLoading = false) => {
+  const loadGroups = useCallback(async (showLoading = false, options?: { silent?: boolean }) => {
     // Prevent multiple simultaneous loads
     if (isLoadingRef.current) {
       console.log('HomeScreen: Load already in progress, skipping');
@@ -46,8 +49,8 @@ export default function HomeScreen() {
     
     try {
       isLoadingRef.current = true;
-      // Only show loading state on initial load or when explicitly requested
-      if (isInitialLoad || showLoading) {
+      // Only show loading state on initial load or when explicitly requested; never for silent (e.g. focus) reload
+      if (!options?.silent && (isInitialLoad || showLoading)) {
         setIsLoading(true);
       }
       console.log('HomeScreen: Loading groups for user:', currentUser.id);
@@ -252,8 +255,8 @@ export default function HomeScreen() {
         return;
       }
       
-      // Show error to user for other errors
-      if (isInitialLoad || showLoading) {
+      // Show error to user for other errors (not for silent reload)
+      if (!options?.silent && (isInitialLoad || showLoading)) {
         alert(
           'Error',
           error?.message || 'Failed to load groups. Please try again.',
@@ -284,6 +287,18 @@ export default function HomeScreen() {
     setUser(storedUser);
   }, []);
 
+  const onRefresh = useCallback(async () => {
+    console.log('HomeScreen: Pull to refresh triggered');
+    setRefreshing(true);
+    try {
+      await loadGroups(true);
+    } catch (error) {
+      console.error('HomeScreen: Error refreshing groups:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadGroups]);
+
   useEffect(() => {
     loadUser();
   }, [loadUser]);
@@ -301,19 +316,19 @@ export default function HomeScreen() {
       console.log('HomeScreen: Refresh param detected, reloading groups (silent)');
       // Small delay to ensure navigation is complete
       setTimeout(() => {
-        loadGroups(false); // Don't show loading state on refresh
+        loadGroups(false, { silent: true });
       }, 500);
     }
   }, [params.refresh, loadGroups]);
 
-  // Reload groups when screen comes into focus (but don't show loading state)
+  // Reload groups when screen comes into focus (silent: no loader, no error popup)
   useFocusEffect(
     useCallback(() => {
       console.log('HomeScreen: Screen focused, reloading groups (silent)');
       // Small delay to ensure navigation is complete
       const reload = async () => {
         await new Promise((resolve) => setTimeout(resolve, 300));
-        await loadGroups(false); // Don't show loading state on focus
+        await loadGroups(false, { silent: true });
       };
       reload();
       // No cleanup needed - we want this to run every time screen focuses
@@ -347,6 +362,7 @@ export default function HomeScreen() {
               
               // Delete the group from the backend
               await deleteGroup(groupId);
+              showAutoDismissAlert(t('success'), t('groupDeletedSuccess'));
               
               // Reload groups to ensure consistency with backend
               // Use a small delay to ensure backend has processed the deletion
@@ -411,41 +427,38 @@ export default function HomeScreen() {
 
   const displayName = user?.name || user?.email || 'Friend';
 
-  // Loading skeleton component
+  // Enhanced loading skeleton component with shimmer effect
   const LoadingSkeleton = () => {
     const shimmerAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
       const shimmer = Animated.loop(
-        Animated.sequence([
-          Animated.timing(shimmerAnim, {
-            toValue: 1,
-            duration: 1500,
-            easing: Easing.linear,
-            useNativeDriver: true,
-          }),
-          Animated.timing(shimmerAnim, {
-            toValue: 0,
-            duration: 1500,
-            easing: Easing.linear,
-            useNativeDriver: true,
-          }),
-        ])
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 2000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
       );
       shimmer.start();
       return () => shimmer.stop();
     }, []);
 
-    const opacity = shimmerAnim.interpolate({
+    const translateX = shimmerAnim.interpolate({
       inputRange: [0, 1],
-      outputRange: [0.3, 0.7],
+      outputRange: [-200, 200],
+    });
+
+    const opacity = shimmerAnim.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [0.2, 0.5, 0.2],
     });
 
     return (
       <View style={styles.loadingContainer}>
         {[1, 2, 3].map((i) => (
           <View key={i} style={styles.skeletonCard}>
-            <Animated.View style={[styles.skeletonContent, { opacity }]}>
+            <View style={styles.skeletonContent}>
               <View style={styles.skeletonHeader}>
                 <View style={[styles.skeletonLine, styles.skeletonTitle]} />
                 <View style={[styles.skeletonLine, styles.skeletonIcon]} />
@@ -453,7 +466,17 @@ export default function HomeScreen() {
               <View style={styles.skeletonDetails}>
                 <View style={[styles.skeletonLine, styles.skeletonDetail]} />
               </View>
-            </Animated.View>
+              {/* Shimmer overlay */}
+              <Animated.View
+                style={[
+                  styles.shimmerOverlay,
+                  {
+                    transform: [{ translateX }],
+                    opacity,
+                  },
+                ]}
+              />
+            </View>
           </View>
         ))}
       </View>
@@ -494,15 +517,24 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      {/* Loading Bar at Top */}
+      {isLoading && isInitialLoad && <LoadingBar height={3} color="#FFD700" />}
+      
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#FFD700"
+            colors={['#FFD700']}
+          />
+        }>
         {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.welcomeText}>{t('welcomeToAyuuto')}, {displayName}!</Text>
-            <Text style={styles.sloganText}>{t('organizeWithTrust')}</Text>
-          </View>
-          <View style={styles.flagButton}>
-            <Text style={styles.flagEmoji}>{language === 'so' ? '🇸🇴' : '🇬🇧'}</Text>
           </View>
         </View>
 
@@ -541,42 +573,43 @@ export default function HomeScreen() {
                     activeOpacity={0.7}>
                     <View style={styles.groupCardLeft}>
                       <Text style={styles.groupCardName}>{group.name.toUpperCase()}</Text>
-                      <View style={styles.groupCardDetails}>
-                        <IconSymbol name="dollarsign.circle.fill" size={14} color="#FFD700" />
-                        <Text style={styles.groupCardDetailsText}>
-                          {(() => {
-                            // Calculate total savings - use totalSavings if available, otherwise calculate from amountPerPerson
-                            const total = group.totalSavings ?? 
-                              ((group.amountPerPerson && group.memberCount) 
-                                ? group.amountPerPerson * group.memberCount 
-                                : 0);
-                            // Always show the amount (even if 0) and participant count
-                            return `${total} • ${group.memberCount} Participants`;
-                          })()}
-                        </Text>
-                      </View>
                     </View>
-                    <TouchableOpacity
-                      style={[
-                        styles.deleteButton,
-                        deletingGroupId === group.id && styles.deleteButtonDisabled
-                      ]}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        if (deletingGroupId !== group.id) {
-                          handleDeleteGroup(group.id, group.name);
-                        }
-                      }}
-                      activeOpacity={0.7}
-                      disabled={deletingGroupId === group.id}>
-                      {deletingGroupId === group.id ? (
-                        <View style={styles.deleteLoading}>
-                          <Text style={styles.deleteLoadingText}>...</Text>
-                        </View>
-                      ) : (
-                        <IconSymbol name="trash.fill" size={18} color="#FF6B6B" />
-                      )}
-                    </TouchableOpacity>
+                    <View style={styles.groupCardActions}>
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => {
+                          if (group.id) {
+                            router.push({
+                              pathname: '/(tabs)/edit-participants',
+                              params: { groupId: group.id, groupName: group.name }
+                            });
+                          }
+                        }}
+                        activeOpacity={0.7}>
+                        <IconSymbol name="pencil" size={18} color="#61a5fb" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.deleteButton,
+                          deletingGroupId === group.id && styles.deleteButtonDisabled
+                        ]}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          if (deletingGroupId !== group.id) {
+                            handleDeleteGroup(group.id, group.name);
+                          }
+                        }}
+                        activeOpacity={0.7}
+                        disabled={deletingGroupId === group.id}>
+                        {deletingGroupId === group.id ? (
+                          <View style={styles.deleteLoading}>
+                            <Text style={styles.deleteLoadingText}>...</Text>
+                          </View>
+                        ) : (
+                          <IconSymbol name="trash.fill" size={18} color="#FF6B6B" />
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </TouchableOpacity>
                 </View>
               )}
@@ -615,40 +648,7 @@ export default function HomeScreen() {
                     activeOpacity={0.7}>
                     <View style={styles.groupCardLeft}>
                       <Text style={styles.groupCardName}>{group.name.toUpperCase()}</Text>
-                      <View style={styles.groupCardDetails}>
-                        <IconSymbol name="dollarsign.circle.fill" size={14} color="#FFD700" />
-                        <Text style={styles.groupCardDetailsText}>
-                          {(() => {
-                            const total = group.totalSavings ??
-                              ((group.amountPerPerson && group.memberCount)
-                                ? group.amountPerPerson * group.memberCount
-                                : 0);
-                            return `${total} • ${group.memberCount} Participants`;
-                          })()}
-                        </Text>
-                      </View>
                     </View>
-                    <TouchableOpacity
-                      style={[
-                        styles.deleteButton,
-                        deletingGroupId === group.id && styles.deleteButtonDisabled
-                      ]}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        if (deletingGroupId !== group.id) {
-                          handleDeleteGroup(group.id, group.name);
-                        }
-                      }}
-                      activeOpacity={0.7}
-                      disabled={deletingGroupId === group.id}>
-                      {deletingGroupId === group.id ? (
-                        <View style={styles.deleteLoading}>
-                          <Text style={styles.deleteLoadingText}>...</Text>
-                        </View>
-                      ) : (
-                        <IconSymbol name="trash.fill" size={18} color="#FF6B6B" />
-                      )}
-                    </TouchableOpacity>
                   </TouchableOpacity>
                 </View>
               )}
@@ -690,24 +690,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 8,
-  },
-  sloganText: {
-    fontSize: 12,
-    color: '#9BA1A6',
-    letterSpacing: 1,
-  },
-  flagButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#1a2332',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#2a3441',
-  },
-  flagEmoji: {
-    fontSize: 24,
   },
   newGroupButton: {
     backgroundColor: '#4CAF50',
@@ -787,20 +769,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFD700',
     letterSpacing: 1,
-    marginBottom: 8,
   },
-  groupCardDetails: {
+  groupCardActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
-  groupCardDetailsText: {
-    color: '#9BA1A6',
-    fontSize: 14,
+  editButton: {
+    padding: 8,
+    backgroundColor: 'rgba(97, 165, 251, 0.1)',
+    borderRadius: 8,
   },
   deleteButton: {
     padding: 8,
-    marginLeft: 12,
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    borderRadius: 8,
   },
   deleteButtonDisabled: {
     opacity: 0.5,
@@ -892,6 +875,15 @@ const styles = StyleSheet.create({
   skeletonDetail: {
     width: '40%',
     height: 14,
+  },
+  shimmerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 215, 0, 0.3)',
+    width: '50%',
   },
   loadingSpinnerContainer: {
     alignItems: 'center',

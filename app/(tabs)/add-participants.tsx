@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,166 +8,81 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Modal,
-  TouchableWithoutFeedback,
-  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { getUsers, type UserSummary } from '@/utils/api';
 import { alert } from '@/utils/alert';
-import { formatParticipantName } from '@/utils/participant';
+import { useI18n } from '@/utils/i18n';
 
 type ParticipantInput = {
-  label: string;
-  selectedUserId?: string | null;
-  email?: string | null;
+  name: string;
 };
 
 export default function AddParticipantsScreen() {
+  const { t } = useI18n();
   const params = useLocalSearchParams();
-  const memberCount = parseInt(params.memberCount as string) || 2;
+  const groupName = (params.groupName as string) || '';
+  const amount = (params.amount as string) || '';
+  const collectionDate = (params.collectionDate as string) || '';
   
-  const [participants, setParticipants] = useState<ParticipantInput[]>([]);
+  const [participants, setParticipants] = useState<ParticipantInput[]>([
+    { name: '' },
+    { name: '' },
+  ]);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
-  const [availableUsers, setAvailableUsers] = useState<UserSummary[]>([]);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
-  const [openSlotIndex, setOpenSlotIndex] = useState<number | null>(null);
-  const [userSearchQuery, setUserSearchQuery] = useState('');
-  const [emailInput, setEmailInput] = useState('');
-  
-  // Reset form when screen comes into focus
+
+  // Reset to empty fields every time screen is focused - do not load/restore names by default
   useFocusEffect(
     useCallback(() => {
-      // Initialize participants array based on member count
-      setParticipants(Array(memberCount).fill({ label: '' }));
-      setFocusedIndex(null);
-    }, [memberCount])
+      setParticipants([{ name: '' }, { name: '' }]);
+    }, [])
   );
-  
-  // Initialize on mount if not already set
-  useEffect(() => {
-    if (participants.length === 0 && memberCount > 0) {
-      setParticipants(Array(memberCount).fill({ label: '' }));
-    }
-  }, []);
 
-  // Load available users for dropdown
-  useEffect(() => {
-    let isMounted = true;
-    const load = async () => {
-      try {
-        setIsLoadingUsers(true);
-        const users = await getUsers();
-        if (isMounted) {
-          setAvailableUsers(users);
-        }
-      } catch (error: any) {
-        console.error('Error loading users for participant dropdown:', error);
-        // Only show error if modal is open (user is actively trying to select)
-        if (openSlotIndex !== null) {
-          alert(
-            'Error',
-            error?.message || 'Failed to load users. Please try again.'
-          );
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingUsers(false);
-        }
-      }
-    };
-    load();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-  
-  const totalParticipants = memberCount;
-
-  const filledCount = participants.filter((p) => p.selectedUserId || p.email).length;
-  // Allow progressing even if not all participants are selected.
-  // You can even skip participants entirely and manage them later.
-  const isFormValid = true;
-
-  const handleSelectUserForIndex = (index: number, user: UserSummary) => {
-    const newParticipants = [...participants];
-    newParticipants[index] = {
-      label: user.name || user.email,
-      selectedUserId: user.id,
-      email: null, // Clear email when selecting registered user
-    };
-    setParticipants(newParticipants);
-    setOpenSlotIndex(null);
-    setUserSearchQuery('');
-    setEmailInput('');
+  const handleAddParticipant = () => {
+    setParticipants([...participants, { name: '' }]);
   };
 
-  const handleAddByEmail = (index: number) => {
-    const trimmedEmail = emailInput.trim().toLowerCase();
-    
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      alert('Invalid Email', 'Please enter a valid email address.');
+  const handleRemoveParticipant = (index: number) => {
+    if (participants.length <= 2) {
+      alert('Minimum Participants', 'At least 2 participants are required.');
       return;
     }
-
-    // Check if email belongs to a registered user
-    const existingUser = availableUsers.find(
-      (u) => u.email && u.email.toLowerCase() === trimmedEmail
-    );
-
-    if (existingUser) {
-      // If user exists, add them as registered user
-      handleSelectUserForIndex(index, existingUser);
-      return;
-    }
-
-    // Add as non-registered participant with email
-    const newParticipants = [...participants];
-    newParticipants[index] = {
-      label: trimmedEmail,
-      selectedUserId: null,
-      email: trimmedEmail,
-    };
+    const newParticipants = participants.filter((_, i) => i !== index);
     setParticipants(newParticipants);
-    setOpenSlotIndex(null);
-    setUserSearchQuery('');
-    setEmailInput('');
   };
 
-  const handleNext = () => {
-    if (!isFormValid) {
+  const handleParticipantNameChange = (index: number, value: string) => {
+    const newParticipants = [...participants];
+    newParticipants[index] = { name: value };
+    setParticipants(newParticipants);
+  };
+
+  const handleCreateGroup = () => {
+    // Validate: at least 2 participants with names
+    const filledParticipants = participants.filter(p => p.name.trim().length > 0);
+    
+    if (filledParticipants.length < 2) {
+      alert('Invalid Participants', 'Please enter at least 2 participant names.');
       return;
     }
 
-    const groupName = (params.groupName as string) || 'Ayuuto Group';
-    
-    // Prepare participants data with both userIds and emails
-    const participantsData = participants
-      .filter((p) => p.selectedUserId || p.email)
-      .map((p) => ({
-        userId: p.selectedUserId || null,
-        email: p.email || null,
-        name: p.label || p.email || 'Participant',
-      }));
-
-    // Pass all collected data forward to the collection screen;
-    // group will actually be created there in a single API flow.
-    router.push({
-      pathname: '/(tabs)/collection',
+    // Navigate to group-created screen with all data - group will be created there
+    router.replace({
+      pathname: '/(tabs)/group-created',
       params: {
         groupName,
-        memberCount: String(memberCount),
-        participants: JSON.stringify(participantsData),
-        fromWizard: 'true',
+        amount,
+        collectionDate,
+        participants: JSON.stringify(filledParticipants),
+        timestamp: Date.now().toString(),
       },
     });
   };
+
+  const filledCount = participants.filter(p => p.name.trim().length > 0).length;
+  const isFormValid = filledCount >= 2;
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -183,224 +98,106 @@ export default function AddParticipantsScreen() {
             <View style={styles.header}>
               <TouchableOpacity
                 style={styles.backButton}
-                onPress={() => router.back()}>
+                onPress={() => {
+                  router.replace({
+                    pathname: '/(tabs)/newgroup',
+                    params: { 
+                      groupName, 
+                      amount,
+                      collectionDate,
+                    },
+                  });
+                }}>
                 <IconSymbol name="chevron.left" size={20} color="#61a5fb" />
-                <Text style={styles.backText}>BACK</Text>
+                <Text style={styles.backText}>{t('back')}</Text>
               </TouchableOpacity>
             </View>
 
             {/* Title */}
-            <Text style={styles.title}>NEW GROUP</Text>
+            <Text style={styles.title}>ADD PARTICIPANTS</Text>
 
             {/* Form */}
             <View style={styles.form}>
-            {/* Participant Slots Section */}
-              <View style={styles.typeNamesHeader}>
-              <Text style={styles.typeNamesLabel}>PARTICIPANT SLOTS</Text>
+              <View style={styles.participantsHeader}>
+                <Text style={styles.participantsLabel}>PARTICIPANTS</Text>
                 <View style={styles.counterBadge}>
-                  <Text style={styles.counterText}>{filledCount}/{totalParticipants}</Text>
+                  <Text style={styles.counterText}>{filledCount}</Text>
                 </View>
               </View>
 
-              {/* Participant Slots as Cards */}
+              {/* Participant Input Fields */}
               {participants.map((participant, index) => (
-                <View key={index} style={styles.inputSection}>
-                  <TouchableOpacity
-                    activeOpacity={0.9}
-                    onPress={() => {
-                      setOpenSlotIndex(index);
-                      setFocusedIndex(index);
-                    }}>
-                    <View
-                      style={[
-                        styles.inputContainer,
-                        focusedIndex === index && styles.inputContainerFocused,
-                      ]}>
-                      <View style={styles.slotContent}>
-                        <View style={styles.slotIndexCircle}>
-                          <Text style={styles.slotIndexText}>{index + 1}</Text>
-                        </View>
-                        <View style={styles.slotTextContainer}>
-                          <Text style={styles.slotTitle}>
-                            {participant.selectedUserId || participant.email 
-                              ? formatParticipantName(participant.label) 
-                              : 'Empty slot'}
-                          </Text>
-                          {!participant.selectedUserId && !participant.email && (
-                            <Text style={styles.slotSubtitle}>Tap to select a user or add by email</Text>
-                          )}
-                          {participant.email && !participant.selectedUserId && (
-                            <Text style={styles.slotSubtitle}>{formatParticipantName(participant.email)}</Text>
-                          )}
-                        </View>
-                        <View style={styles.slotIconContainer}>
-                          <IconSymbol
-                            name={participant.selectedUserId ? 'person.fill' : participant.email ? 'envelope.fill' : 'plus.circle.fill'}
-                            size={24}
-                            color={participant.selectedUserId ? '#4CAF50' : participant.email ? '#61a5fb' : '#FFD700'}
-                          />
-                        </View>
-                      </View>
+                <View key={index} style={styles.participantRow}>
+                  {/* Serial Number */}
+                  <View style={styles.serialNumber}>
+                    <Text style={styles.serialNumberText}>{index + 1}</Text>
+                  </View>
+
+                  {/* Text Input */}
+                  <View style={styles.inputWrapper}>
+                    <View style={[
+                      styles.inputContainer,
+                      focusedIndex === index && styles.inputContainerFocused
+                    ]}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Enter participant name"
+                        placeholderTextColor="#9BA1A6"
+                        value={participant.name}
+                        onChangeText={(value) => handleParticipantNameChange(index, value)}
+                        onFocus={() => setFocusedIndex(index)}
+                        onBlur={() => setFocusedIndex(null)}
+                        autoCapitalize="words"
+                        autoCorrect={false}
+                      />
                     </View>
-                  </TouchableOpacity>
+                  </View>
+
+                  {/* Remove Button (only show if more than 2 participants) */}
+                  {participants.length > 2 && (
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={() => handleRemoveParticipant(index)}
+                      activeOpacity={0.7}>
+                      <IconSymbol name="minus.circle.fill" size={24} color="#FF6B6B" />
+                    </TouchableOpacity>
+                  )}
                 </View>
               ))}
 
-              {/* Next Button */}
+              {/* Add Participant Button */}
               <TouchableOpacity
-                style={[
-                  styles.nextButton,
-                  isFormValid && styles.nextButtonActive
-                ]}
-                onPress={handleNext}
-                activeOpacity={0.8}
-                disabled={!isFormValid}>
-                <Text style={[
-                  styles.nextButtonText,
-                  isFormValid && styles.nextButtonTextActive
-                ]}>
-                  NEXT
-                </Text>
+                style={styles.addButton}
+                onPress={handleAddParticipant}
+                activeOpacity={0.7}>
+                <IconSymbol name="plus.circle.fill" size={20} color="#FFD700" />
+                <Text style={styles.addButtonText}>ADD PARTICIPANT</Text>
               </TouchableOpacity>
+
             </View>
           </View>
         </ScrollView>
+
+        {/* Create Button - Fixed at bottom */}
+        <View style={styles.bottomButtonContainer}>
+          <TouchableOpacity
+            style={[
+              styles.createButtonActive,
+              !isFormValid && styles.createButton
+            ]}
+            onPress={handleCreateGroup}
+            activeOpacity={0.8}
+            disabled={!isFormValid}>
+            <Text
+              style={[
+                styles.createButtonTextActive,
+                !isFormValid && styles.createButtonText,
+              ]}>
+              CREATE & CELEBRATE
+            </Text>
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
-
-      {/* User selection modal */}
-      <Modal
-        visible={openSlotIndex !== null}
-        animationType="slide"
-        transparent
-        onRequestClose={() => {
-          setOpenSlotIndex(null);
-          setUserSearchQuery('');
-          setEmailInput('');
-        }}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
-          <TouchableWithoutFeedback
-            onPress={() => {
-              Keyboard.dismiss();
-              setOpenSlotIndex(null);
-              setUserSearchQuery('');
-              setEmailInput('');
-            }}>
-            <View style={styles.modalOverlayInner}>
-              <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-                <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Select participant</Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setOpenSlotIndex(null);
-                      setUserSearchQuery('');
-                      setEmailInput('');
-                    }}>
-                    <IconSymbol name="xmark.circle.fill" size={22} color="#9BA1A6" />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Email Input Section */}
-                <View style={styles.emailInputSection}>
-                  <View style={styles.emailInputContainer}>
-                    <IconSymbol name="envelope" size={16} color="#9BA1A6" />
-                    <TextInput
-                      style={styles.emailInput}
-                      placeholder="Enter email address"
-                      placeholderTextColor="#9BA1A6"
-                      value={emailInput}
-                      onChangeText={setEmailInput}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      keyboardType="email-address"
-                    />
-                  </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.addEmailButton,
-                      emailInput.trim().length > 0 && styles.addEmailButtonActive
-                    ]}
-                    onPress={() => {
-                      if (openSlotIndex !== null) {
-                        handleAddByEmail(openSlotIndex);
-                      }
-                    }}
-                    disabled={emailInput.trim().length === 0}
-                    activeOpacity={0.7}>
-                    <IconSymbol 
-                      name="plus" 
-                      size={20} 
-                      color={emailInput.trim().length > 0 ? '#000000' : '#9BA1A6'} 
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.divider}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>OR</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-
-                <View style={styles.dropdownSearchContainer}>
-                  <IconSymbol name="magnifyingglass" size={14} color="#9BA1A6" />
-                  <TextInput
-                    style={styles.dropdownSearchInput}
-                    placeholder="Search users by name or email"
-                    placeholderTextColor="#9BA1A6"
-                    value={userSearchQuery}
-                    onChangeText={setUserSearchQuery}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
-
-                {isLoadingUsers ? (
-                  <View style={styles.dropdownLoadingContainer}>
-                    <LoadingSpinner size={32} text="Loading users..." />
-                  </View>
-                ) : (() => {
-                  const q = userSearchQuery.trim().toLowerCase();
-                  const filtered =
-                    q.length === 0
-                      ? availableUsers
-                      : availableUsers.filter(
-                          (u) =>
-                            (u.name && u.name.toLowerCase().includes(q)) ||
-                            (u.email && u.email.toLowerCase().includes(q))
-                        );
-                  if (filtered.length === 0) {
-                    return (
-                      <Text style={styles.dropdownEmptyText}>No users match your search.</Text>
-                    );
-                  }
-                  return (
-                    <ScrollView style={styles.dropdownList} keyboardShouldPersistTaps="handled">
-                      {filtered.map((user) => (
-                        <TouchableOpacity
-                          key={user.id}
-                          style={styles.dropdownItem}
-                          onPress={() => {
-                            if (openSlotIndex !== null) {
-                              handleSelectUserForIndex(openSlotIndex, user);
-                            }
-                          }}
-                          activeOpacity={0.7}>
-                          <Text style={styles.dropdownItemName}>{user.name || user.email}</Text>
-                          <Text style={styles.dropdownItemEmail}>{user.email}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  );
-                })()}
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -442,20 +239,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: '#FFFFFF',
     letterSpacing: 2,
     marginBottom: 40,
   },
   form: {
     flex: 1,
   },
-  typeNamesHeader: {
+  participantsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 20,
   },
-  typeNamesLabel: {
+  participantsLabel: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFD700',
@@ -466,7 +263,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 4,
-    minWidth: 40,
+    minWidth: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -475,15 +272,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  inputSection: {
+  participantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 16,
+    gap: 12,
+  },
+  serialNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFD700',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serialNumberText: {
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  inputWrapper: {
+    flex: 1,
   },
   inputContainer: {
     backgroundColor: 'rgb(0 10 26)',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'transparent',
-    minHeight: 72,
+    minHeight: 56,
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
@@ -495,209 +311,64 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingVertical: 16,
   },
-  slotContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  removeButton: {
+    padding: 4,
   },
-  slotIndexCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#1f3a5f',
+  addButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  slotIndexText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  slotTextContainer: {
-    flex: 1,
-  },
-  slotTitle: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  slotSubtitle: {
-    color: '#9BA1A6',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  slotIconContainer: {
-    paddingLeft: 8,
-  },
-  selectUserButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 6,
-  },
-  selectUserText: {
-    fontSize: 13,
-    color: '#FFD700',
-    fontWeight: '500',
-  },
-  dropdown: {
-    marginTop: 6,
-    backgroundColor: '#001327',
-    borderRadius: 8,
+    backgroundColor: 'rgb(0 10 26)',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#2a3441',
-    maxHeight: 180,
-    overflow: 'hidden',
+    borderColor: '#FFD700',
+    borderStyle: 'dashed',
+    paddingVertical: 16,
+    marginTop: 8,
+    marginBottom: 24,
+    gap: 8,
   },
-  dropdownSearchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1a2332',
-    gap: 6,
+  addButtonText: {
+    color: '#FFD700',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 1,
   },
-  dropdownSearchInput: {
-    flex: 1,
-    color: '#FFFFFF',
-    fontSize: 13,
-    paddingVertical: 4,
+  bottomButtonContainer: {
+    padding: 20,
+    paddingBottom: 10,
+    backgroundColor: 'rgb(1 27 61)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 215, 0, 0.1)',
   },
-  dropdownList: {
-    maxHeight: 180,
-  },
-  dropdownItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1a2332',
-  },
-  dropdownItemName: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  dropdownItemEmail: {
-    color: '#9BA1A6',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  dropdownEmptyText: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: '#9BA1A6',
-    fontSize: 13,
-  },
-  dropdownLoadingContainer: {
-    paddingVertical: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextButton: {
+  createButton: {
     backgroundColor: '#152b45',
     borderRadius: 12,
     paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
     borderWidth: 1,
     borderColor: '#2a3441',
   },
-  nextButtonActive: {
-    backgroundColor: '#FFD700',
-    borderColor: '#FFD700',
+  createButtonActive: {
+    backgroundColor: '#22C55E',
+    borderColor: '#22C55E',
+    borderRadius: 12,
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
-  nextButtonText: {
+  createButtonText: {
     color: '#67758a',
     fontSize: 18,
     fontWeight: 'bold',
     letterSpacing: 1.5,
   },
-  nextButtonTextActive: {
-    color: '#000000',
-  },
-  modalOverlay: {
-    flex: 1,
-  },
-  modalOverlayInner: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#001327',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 32,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  modalTitle: {
+  createButtonTextActive: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: '600',
-  },
-  emailInputSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  emailInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0a1628',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#1a2332',
-    gap: 8,
-  },
-  emailInput: {
-    flex: 1,
-    color: '#FFFFFF',
-    fontSize: 14,
-    paddingVertical: 0,
-  },
-  addEmailButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: '#1a2332',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#2a3441',
-  },
-  addEmailButtonActive: {
-    backgroundColor: '#FFD700',
-    borderColor: '#FFD700',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 12,
-    gap: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#1a2332',
-  },
-  dividerText: {
-    color: '#9BA1A6',
-    fontSize: 12,
-    fontWeight: '500',
+    fontWeight: 'bold',
+    letterSpacing: 1.5,
   },
 });
-
