@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, Animated, Easing } from 'react-native';
+import { StyleSheet, View, Text, Animated, Easing, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -318,7 +318,9 @@ export default function PaymentProcessingScreen() {
               {/* Congratulations Text */}
               <View style={styles.congratulationsTextContainer}>
                 <Text style={styles.congratulationsText}>
-                  {t('congratulations')}
+                  {Platform.OS === 'android' 
+                    ? t('congratulations').replace('!', '') 
+                    : t('congratulations')}
                 </Text>
                 {recipientName && (
                   <Text style={styles.recipientNameText}>

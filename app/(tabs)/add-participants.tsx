@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
   },
   bottomButtonContainer: {
     padding: 20,
-    paddingBottom: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 10,
     backgroundColor: 'rgb(1 27 61)',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 215, 0, 0.1)',

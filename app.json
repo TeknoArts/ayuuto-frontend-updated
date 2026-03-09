@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ayuuto",
     "slug": "ayuuto",
-    "version": "1.0.2",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ayuuto",
@@ -13,8 +13,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ayuuto.app",
       "buildNumber": "3",
+      "icon": "./assets/images/icon.png",
       "infoPlist": {
-        "NSUserTrackingUsageDescription": "This app uses tracking to provide personalized experiences.",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to share images.",
         "NSCameraUsageDescription": "This app needs access to your camera to take photos.",
         "NSAppTransportSecurity": {
@@ -30,7 +30,7 @@
       }
     },
     "android": {
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/icon.png",
@@ -86,9 +86,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "986fa7c8-65c5-4a79-bda3-7149c2f8f017"
+        "projectId": "29737d5c-9d4c-4c9c-a713-774ea5eac196"
       }
     },
-    "owner": "technoarts104"
+    "owner": "yusufkullow"
   }
 }

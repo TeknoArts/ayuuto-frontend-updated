@@ -838,7 +838,6 @@ export default function GroupDetailsScreen() {
             {/* Keep content to preserve size; hide it visually when loading */}
             <View style={[styles.nextRoundButtonContent, isStartingNextRound && styles.nextRoundButtonTextHidden]}>
               <Text style={styles.nextRoundButtonText}>{t('nextRound')}</Text>
-              <IconSymbol name="party.popper.fill" size={20} color="#001a3c" />
             </View>
             {isStartingNextRound && (
               <View style={styles.nextRoundButtonSpinnerOverlay} pointerEvents="none">
